@@ -46,19 +46,22 @@ export function createBrowserPreferences(options = {}) {
     () => preferences.updateSystem({ languages: navigator.languages }),
     { signal: controller.signal },
   );
+  let observer;
   preferences.subscribe(
     () => {
       document.documentElement.dataset.theme = preferences.resolvedTheme;
       document.documentElement.dataset.uiLanguage = preferences.locale;
-      document.documentElement.lang = preferences.locale;
+      if (document.documentElement.lang !== preferences.locale) {
+        document.documentElement.lang = preferences.locale;
+        observer?.takeRecords();
+      }
     },
     { signal: controller.signal },
   );
-  const observer = options.observeHostLanguage
+  observer = options.observeHostLanguage
     ? new MutationObserver(() => {
         const locale = document.documentElement.lang;
-        if (locale && locale !== preferences.locale)
-          preferences.updateHost({ locale });
+        if (locale) preferences.updateHost({ locale });
       })
     : null;
   observer?.observe(document.documentElement, {
