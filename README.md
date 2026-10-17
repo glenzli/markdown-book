@@ -2,7 +2,7 @@
 
 普通 Markdown 书稿、可复用的浏览器互动组件，以及本地与网站共用的阅读器。
 
-当前为 0.2.0 开发版。包含格式 v1、`check / serve / build`、公式与资源转换、静态回退、源文件更新预览，以及 Codex 插件。尚未发布 npm 包，也未部署网站。
+当前为 0.3.0 开发版。包含格式 v1、`check / serve / build`、公式与资源转换、静态回退、源文件更新预览，以及 Codex 插件。尚未发布 npm 包，也未部署网站。
 
 ## 本地开发
 
@@ -17,7 +17,7 @@ node bin/markdown-book.js build /path/to/book --out /tmp/book-site --base /books
 
 参数可以是包含 book.json 的目录，也可以是清单路径。`serve` 输出本地地址，默认动态选择空闲端口。静态构建输出的内容挂载到 `--base` 指定的路径即可，不要求主站重新解析正文。除本地预览的文件更新通知外，阅读与互动均不需要服务器 API。
 
-本轮真实使用端位于相邻 Curio 仓库的 `books/photographic-imaging-science/book.json`，包含完整摄影教材的 25 个阅读页面与第四章噪声互动。书稿、图版与学科模型维护在 Curio，工具仓库不复制教材正文。
+本轮真实使用端位于相邻 Curio 仓库的 `books/photographic-imaging-science/book.json`，包含完整摄影教材的 25 个阅读页面、第四章噪声互动和第十六章 Three.js 对焦动画。书稿、图版与学科模型维护在 Curio，工具仓库不复制教材正文。
 
 ## 规范与源码
 
@@ -50,12 +50,22 @@ codex plugin add markdown-book@markdown-book-local --json
 
 插件结构依据 [OpenAI 官方插件文档](https://developers.openai.com/plugins/build/plugins)，采用仍受支持的 Codex compatibility manifest；侧栏和会话入口依据 [官方扩展协议](https://developers.openai.com/plugins/build/extensions#sidebar-apps)。
 
+## 三维组件与图标
+
+组件可以从 `@glenzli/markdown-book/three` 导入内置的 Three.js、OrbitControls 和 `createThreeViewport`。书籍不需要单独安装 Three.js，也不需要 CDN。网页仅在对应组件接近视口时加载三维代码；原生面板仅打包当前页面用到的组件，普通章节不加载三维引擎。
+
+视口助手统一处理尺寸、按需渲染、播放暂停、不可见时停帧和关闭时释放 GPU 资源。没有 WebGL 2 时，Reader 保留原静态图。使用约定与示例见 [三维组件](docs/three-components.md)。
+
+图标采用透明底单色书页，右页的播放形表示动态内容。矢量原稿保存在 [assets/brand/markdown-book.svg](assets/brand/markdown-book.svg)；`npm run brand:build` 可重建插件的黑白 PNG。浅色与深色图标分别配置 `composerIcon / composerIconDark` 与 `logo / logoDark`，不设置品牌主题色；Reader 中的矢量图继承界面文字颜色。
+
 ## 验证
 
 ```bash
 npm test
 npm run check
 npm run format:check
+npm run brand:check
+npm run package:check
 ```
 
 修改清单 schema 后，运行 `node scripts/check-project.js --write-schema` 生成机器规范。测试覆盖真实输入边界、打包与输出、预览重建及 MCP 会话。组件的学科模型与行为测试由各书稿仓库承担。

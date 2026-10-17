@@ -1,8 +1,11 @@
 {
   "name": "markdown-book",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Preview and validate local Markdown books with interactive components.",
-  "author": { "name": "glenzli", "url": "https://github.com/glenzli" },
+  "author": {
+    "name": "glenzli",
+    "url": "https://github.com/glenzli"
+  },
   "homepage": "https://github.com/glenzli/markdown-book",
   "repository": "https://github.com/glenzli/markdown-book",
   "license": "MIT",
@@ -16,6 +19,9 @@
     "category": "Productivity",
     "capabilities": ["Read", "Interactive"],
     "defaultPrompt": ["Preview the Markdown book in this project."],
-    "brandColor": "#2F6251"
+    "composerIcon": "./assets/icon.png",
+    "composerIconDark": "./assets/icon-dark.png",
+    "logo": "./assets/icon.png",
+    "logoDark": "./assets/icon-dark.png"
   }
 }

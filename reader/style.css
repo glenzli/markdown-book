@@ -526,3 +526,13 @@ summary:focus-visible {
     min-width: 0;
   }
 }
+
+.brand-symbol svg {
+  display: block;
+  width: 28px;
+  height: 28px;
+}
+
+.brand-symbol {
+  color: var(--text);
+}

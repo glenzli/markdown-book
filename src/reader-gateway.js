@@ -167,19 +167,15 @@ export class ReaderGateway {
     return view;
   }
 
-  async nativeAssets(state) {
+  async nativeAssets(state, componentNames = []) {
     if (!state.native)
       state.native = (async () => {
         const out = state.preview.result.outDir;
         const index = await readFile(path.join(out, "index.html"), "utf8");
-        const script = index.match(
-          /<script type="module" src="([^"]+)"><\/script>/,
-        )?.[1];
         const stylesheet = index.match(
           /<link rel="stylesheet" href="([^"]+)">/,
         )?.[1];
-        if (!script || !stylesheet)
-          throw new Error("Reader assets are missing");
+        if (!stylesheet) throw new Error("Reader assets are missing");
         const cssFile = await projectFile(out, stylesheet.slice(1));
         let css = await readFile(cssFile, "utf8");
         css = css.replace(/src:([^;}]+);/g, (declaration, sources) => {
@@ -203,23 +199,64 @@ export class ReaderGateway {
           const data = `data:${mime[path.extname(filename)] ?? "application/octet-stream"};base64,${(await readFile(filename)).toString("base64")}`;
           css = css.split(`url(${url})`).join(`url("${data}")`);
         }
-        // Rebundle generated modules without changing the shared reader/component contract.
-        const compiled = await bundle({
-          entryPoints: [await projectFile(out, script.slice(1))],
-          bundle: true,
-          write: false,
-          format: "esm",
-          platform: "browser",
-          target: "es2022",
-          minify: true,
-          logLevel: "silent",
-        });
-        return { stylesheet: css, javascript: compiled.outputFiles[0].text };
+        const map = JSON.parse(
+          await readFile(path.join(out, "reader-map.json"), "utf8"),
+        );
+        return { stylesheet: css, map, out, scripts: new Map() };
       })().catch((error) => {
         state.native = null;
         throw error;
       });
-    return state.native;
+    const assets = await state.native;
+    const names = [...new Set(componentNames)].sort();
+    const key = JSON.stringify(names);
+    if (!assets.scripts.has(key))
+      assets.scripts.set(
+        key,
+        (async () => {
+          const core = await projectFile(
+            assets.out,
+            `assets/${assets.map.reader}`,
+          );
+          const entries = [];
+          for (const name of names) {
+            const component = assets.map.components[name];
+            if (!component)
+              throw new Error(`Unknown native component: ${name}`);
+            const filename = await projectFile(
+              assets.out,
+              `assets/${component.file}`,
+            );
+            entries.push(
+              `${JSON.stringify(name)}: { load: () => import(${JSON.stringify(filename)}), props: ${JSON.stringify(component.props)} }`,
+            );
+          }
+          // Rebundle only this page's generated components; plain pages never load Three.js.
+          const compiled = await bundle({
+            stdin: {
+              contents: `import { startReader } from ${JSON.stringify(core)}; startReader({${entries.join(",")}});`,
+              resolveDir: path.join(assets.out, "assets"),
+              sourcefile: "native-reader.js",
+              loader: "js",
+            },
+            bundle: true,
+            write: false,
+            format: "esm",
+            platform: "browser",
+            target: "es2022",
+            minify: true,
+            logLevel: "silent",
+          });
+          return compiled.outputFiles[0].text;
+        })().catch((error) => {
+          assets.scripts.delete(key);
+          throw error;
+        }),
+      );
+    return {
+      stylesheet: assets.stylesheet,
+      javascript: await assets.scripts.get(key),
+    };
   }
 
   async page(viewKey, chapterId) {
@@ -252,9 +289,14 @@ export class ReaderGateway {
     }
     const body = html.match(/<body>([\s\S]*)<\/body>/)?.[1];
     if (!body) throw new Error("Reader page is missing");
+    const pageState = JSON.parse(
+      html.match(
+        /<script id="mb-state" type="application\/json">([\s\S]*?)<\/script>/,
+      )[1],
+    );
     return {
       body,
-      ...(await this.nativeAssets(state)),
+      ...(await this.nativeAssets(state, pageState.components)),
       title: state.preview.result.manifest.title,
       chapterId: chapterId ?? null,
       cursor: state.cursor,

@@ -1,3 +1,4 @@
+import { brandIcons } from "./brand.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -8,7 +9,11 @@ import { ReaderGateway } from "./reader-gateway.js";
 import { readerAppHtml, readerResourceUri } from "./reader-app.js";
 
 export function createBookMcp(options = {}) {
-  const server = new McpServer({ name: "markdown-book", version: toolVersion });
+  const server = new McpServer({
+    name: "markdown-book",
+    version: toolVersion,
+    icons: brandIcons,
+  });
   const gateway = new ReaderGateway();
   const result = (value) => ({ content: [], structuredContent: value });
   const attempt = (fn) => async (args) => {

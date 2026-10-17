@@ -27,6 +27,10 @@ for (const required of [
   "src/build.js",
   "reader/reader.js",
   "reader/style.css",
+  "reader/three.js",
+  "assets/brand/markdown-book.svg",
+  "plugins/markdown-book/assets/icon.png",
+  "plugins/markdown-book/assets/icon-dark.png",
   "schema/book.schema.json",
   "plugins/markdown-book/.codex-plugin/plugin.json",
 ])

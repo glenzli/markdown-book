@@ -1,6 +1,6 @@
 {
   "name": "@glenzli/markdown-book",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Markdown books with portable interactive components, a shared reader, and static builds.",
   "type": "module",
   "license": "MIT",
@@ -12,7 +12,8 @@
   },
   "exports": {
     ".": "./src/index.js",
-    "./component": "./src/component.d.ts"
+    "./component": "./src/component.d.ts",
+    "./three": "./reader/three.js"
   },
   "files": [
     "bin",
@@ -26,7 +27,9 @@
     "plugins/markdown-book/skills",
     ".agents",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "assets",
+    "plugins/markdown-book/assets"
   ],
   "scripts": {
     "test": "node --test --test-concurrency=1 test/*.test.js",
@@ -34,7 +37,9 @@
     "format:check": "prettier --check .",
     "check": "node scripts/check-project.js",
     "plugin:bundle": "node scripts/bundle-plugin.js",
-    "package:check": "node scripts/check-package.js"
+    "package:check": "node scripts/check-package.js",
+    "brand:build": "node scripts/build-brand.js",
+    "brand:check": "node scripts/build-brand.js --check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
@@ -50,12 +55,14 @@
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
+    "three": "0.186.1",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0",
     "vfile": "^6.0.3",
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
     "prettier": "^3.6.2"
   }
 }

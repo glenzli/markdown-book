@@ -21,7 +21,7 @@ import { renderPage } from "./template.js";
 
 const toolRoot = fileURLToPath(new URL("../", import.meta.url));
 const resolveDependency = createRequire(import.meta.url).resolve;
-export const toolVersion = "0.2.0";
+export const toolVersion = "0.3.0";
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 
 export async function checkBook(input = ".", options = {}) {
@@ -60,17 +60,26 @@ export async function checkBook(input = ".", options = {}) {
     .join(",")}};\nstartReader(registry);`;
   const bundling = await bundle({
     absWorkingDir: toolRoot,
-    entryPoints: { reader: "markdown-book:entry" },
+    entryPoints: {
+      reader: "markdown-book:entry",
+      "reader-host": "markdown-book:host",
+    },
     plugins: [
       {
         name: "markdown-book-reader",
         setup(api) {
-          api.onResolve({ filter: /^markdown-book:entry$/ }, () => ({
-            path: "entry",
+          api.onResolve({ filter: /^@glenzli\/markdown-book\/three$/ }, () => ({
+            path: path.join(toolRoot, "reader/three.js"),
+          }));
+          api.onResolve({ filter: /^markdown-book:(entry|host)$/ }, (args) => ({
+            path: args.path.endsWith(":host") ? "host" : "entry",
             namespace: "markdown-book",
           }));
-          api.onLoad({ filter: /.*/, namespace: "markdown-book" }, () => ({
-            contents: moduleSource,
+          api.onLoad({ filter: /.*/, namespace: "markdown-book" }, (args) => ({
+            contents:
+              args.path === "host"
+                ? `export { startReader } from ${JSON.stringify(path.join(toolRoot, "reader/reader.js"))};`
+                : moduleSource,
             resolveDir: book.root,
             loader: "js",
           }));
@@ -92,15 +101,24 @@ export async function checkBook(input = ".", options = {}) {
     loader: { ".woff": "file", ".woff2": "file", ".ttf": "file" },
     logLevel: "silent",
   });
+  const componentModules = {};
   for (const [id, component] of Object.entries(registry)) {
-    const output = Object.values(bundling.metafile.outputs).find(
-      (entry) =>
+    const output = Object.entries(bundling.metafile.outputs).find(
+      ([, entry]) =>
         entry.entryPoint &&
         path.resolve(toolRoot, entry.entryPoint) === component.entry,
     );
-    if (!output?.exports.includes("mount"))
+    if (!output?.[1].exports.includes("mount"))
       throw new Error(`Component ${id} must export mount(context)`);
+    componentModules[id] = {
+      file: path.basename(output[0]),
+      props: component.props,
+    };
   }
+  const nativeEntry = Object.entries(bundling.metafile.outputs).find(
+    ([, value]) => value.entryPoint === "markdown-book:host",
+  );
+  if (!nativeEntry) throw new Error("Native reader entry was not generated");
   const entry = Object.entries(bundling.metafile.outputs).find(
     ([, value]) => value.entryPoint === "markdown-book:entry",
   );
@@ -138,6 +156,15 @@ export async function checkBook(input = ".", options = {}) {
       sha(await readFile(absolute)),
     ]);
   }
+  const notices = [];
+  if (inputDigests.some(([name]) => name.startsWith("dependency:three/"))) {
+    const license = await readFile(
+      path.resolve(path.dirname(resolveDependency("three")), "../LICENSE"),
+      "utf8",
+    );
+    notices.push(`Three.js\n\n${license}`);
+    inputDigests.push(["dependency:three/LICENSE", sha(license)]);
+  }
   inputDigests.sort((a, b) => a[0].localeCompare(b[0]));
   const assetDigests = [];
   for (const chapter of chapters)
@@ -149,6 +176,8 @@ export async function checkBook(input = ".", options = {}) {
       "src/manifest.js",
       "src/markdown.js",
       "src/template.js",
+      "src/brand.js",
+      "assets/brand/markdown-book.svg",
       "package.json",
     ].map(async (file) => [
       file,
@@ -170,7 +199,10 @@ export async function checkBook(input = ".", options = {}) {
     chapters,
     base,
     javascript,
+    nativeJavascript: path.basename(nativeEntry[0]),
+    componentModules,
     stylesheet,
+    notices,
     outputFiles: bundling.outputFiles,
     digest,
   };
@@ -252,11 +284,24 @@ export async function buildBook(input = ".", options = {}) {
   };
   try {
     await mkdir(path.join(staging, "assets"));
+    if (prepared.notices.length)
+      await writeFile(
+        path.join(staging, "THIRD_PARTY_LICENSES.txt"),
+        prepared.notices.join("\n\n"),
+      );
     for (const file of prepared.outputFiles)
       await writeFile(
         path.join(staging, "assets", path.basename(file.path)),
         file.contents,
       );
+    await writeFile(
+      path.join(staging, "reader-map.json"),
+      JSON.stringify({
+        reader: prepared.nativeJavascript,
+        stylesheet: prepared.stylesheet,
+        components: prepared.componentModules,
+      }) + "\n",
+    );
     for (const chapter of prepared.chapters) {
       for (const asset of chapter.assets) {
         const target = path.join(

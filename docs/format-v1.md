@@ -72,7 +72,7 @@ export function mount({ element, props, signal }) {
 
 ## 输出与本地预览
 
-`build --base /books/imaging/` 生成书目首页、每章 index.html、带内容指纹的 JS/CSS/字体、本地资源、catalog.json 与 build.json。输出目录内容挂载到指定 base。默认输出为书籍目录的 dist；仅覆盖此前由本工具为同一 book id 生成的输出，拒绝覆盖书籍根或未知目录。
+`build --base /books/imaging/` 生成书目首页、每章 index.html、带内容指纹的 JS/CSS/字体、本地资源、catalog.json、原生面板组件映射 reader-map.json 与 build.json。输出目录内容挂载到指定 base。默认输出为书籍目录的 dist；仅覆盖此前由本工具为同一 book id 生成的输出，拒绝覆盖书籍根或未知目录。
 
 build.json 记录工具与格式版本、输入摘要、观测到的 Git 提交和工作树状态。网页终态可重新生成，书稿与组件源码是维护入口。构建不会提交 Git 或部署网站。
 
@@ -85,3 +85,7 @@ build.json 记录工具与格式版本、输入摘要、观测到的 Git 提交�
 原生面板复用静态构建的正文、样式、公式和组件模块。MCP 网关为每个面板维护独立 viewKey，将本地图片与字体内联，并将同一组生成的模块打包为面板可加载的代码。面板通过 App 专用工具取页、接收更新和释放视图，不直接访问 loopback HTTP。CLI 与网站保留普通的章节网页、独立资源和按需组件加载。
 
 书籍不需要添加 Codex 专用文件。插件的书籍发现只扫描显式项目目录内的三层子目录，不跟随目录符号链接；项目包含多本书时由读者选择。插件不提供写书、命令执行或部署工具。
+
+## 可选的三维运行时
+
+v1 的 `mount` 接口可以加载 Three.js 场景。工具提供 `@glenzli/markdown-book/three` 模块，在构建时解析到工具持有的固定版本引擎，不要求书籍额外安装依赖；这是运行时能力，不改变书籍格式版本。仍需同一个静态回退容器。生命周期、加载边界和模型要求见 [三维组件](three-components.md)。

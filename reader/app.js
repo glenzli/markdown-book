@@ -1,3 +1,4 @@
+const appMark = document.querySelector(".mb-app-mark")?.outerHTML ?? "";
 // MCP Apps host bridge. Navigation stays inside this panel, including opaque origins.
 const pending = new Map();
 const viewKey = crypto.randomUUID().replaceAll("-", "");
@@ -75,6 +76,7 @@ function chooser(choices = [], workspace = "") {
   document.getElementById("mb-book-style")?.remove();
   document.body.innerHTML =
     '<main class="mb-launcher"><h1>Markdown Book</h1><p>选择包含 book.json 的书籍目录，或扫描当前项目中的书籍。</p><form><label for="mb-root">本地书籍或项目目录</label><input id="mb-root" required placeholder="/absolute/path/to/book"><button type="submit">打开</button></form><p role="alert" hidden></p><div class="mb-books"></div></main>';
+  document.querySelector("h1").insertAdjacentHTML("afterbegin", appMark);
   document.getElementById("mb-root").value = workspace;
   const list = document.querySelector(".mb-books");
   for (const choice of choices) {
@@ -264,7 +266,7 @@ addEventListener("message", (event) => {
 });
 async function initialize() {
   await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.2.0" },
+    appInfo: { name: "markdown-book", version: "0.3.0" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });

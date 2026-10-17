@@ -10,6 +10,7 @@ for (const name of [
   "bin",
   "src",
   "reader",
+  "assets",
   "package.json",
   "package-lock.json",
   "node_modules",

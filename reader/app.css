@@ -71,3 +71,15 @@ body {
   font-size: 12px;
   white-space: nowrap;
 }
+
+.mb-app-mark {
+  display: inline-block;
+  width: 36px;
+  height: 36px;
+  vertical-align: middle;
+  margin-right: 12px;
+}
+.mb-app-mark svg {
+  width: 100%;
+  height: 100%;
+}

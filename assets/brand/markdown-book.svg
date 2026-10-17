@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor">
+  <title>Markdown Book</title>
+  <path fill-rule="evenodd" d="M72 116c54-11 110 2 170 38v232c-60-36-116-49-170-38V116Zm46 83v15c25 2 51 10 77 24v-15c-26-14-52-22-77-24Zm0 48v15c25 2 51 10 77 24v-15c-26-14-52-22-77-24Z"/>
+  <path fill-rule="evenodd" d="M270 154c60-36 116-49 170-38v232c-54-11-110 2-170 38V154Zm49 43v97l79-48-79-49Z"/>
+</svg>
