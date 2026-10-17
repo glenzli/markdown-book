@@ -1,0 +1,61 @@
+{
+  "name": "@glenzli/markdown-book",
+  "version": "0.2.0",
+  "description": "Markdown books with portable interactive components, a shared reader, and static builds.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "markdown-book": "bin/markdown-book.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./component": "./src/component.d.ts"
+  },
+  "files": [
+    "bin",
+    "src",
+    "reader",
+    "docs",
+    "schema",
+    "plugins/markdown-book/.codex-plugin",
+    "plugins/markdown-book/.mcp.json",
+    "plugins/markdown-book/scripts",
+    "plugins/markdown-book/skills",
+    ".agents",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "node scripts/check-project.js",
+    "plugin:bundle": "node scripts/bundle-plugin.js",
+    "package:check": "node scripts/check-package.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "chokidar": "^4.0.3",
+    "esbuild": "0.28.2",
+    "github-slugger": "^2.0.0",
+    "katex": "^0.16.22",
+    "rehype-katex": "^7.0.1",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.0.0",
+    "vfile": "^6.0.3",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}

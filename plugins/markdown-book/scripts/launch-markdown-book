@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin"
+export PATH
+script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+runtime="$script_dir/../runtime/bin/markdown-book.js"
+if [ ! -f "$runtime" ]; then
+  runtime="${MARKDOWN_BOOK_CLI:-$script_dir/../../../bin/markdown-book.js}"
+fi
+if [ ! -f "$runtime" ]; then
+  printf '%s\n' 'Markdown Book runtime is missing. Run npm run plugin:bundle in the source repository before installing the plugin.' >&2
+  exit 1
+fi
+for candidate in "${CODEX_MCP_NODE_PATH:-}" "${CODEX_BROWSER_USE_NODE_PATH:-}"
+do
+  if [ -n "$candidate" ] && [ -x "$candidate" ]; then exec "$candidate" "$runtime" "$@"; fi
+done
+exec node "$runtime" "$@"

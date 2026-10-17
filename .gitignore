@@ -1,0 +1,5 @@
+node_modules/
+dist/
+plugins/markdown-book/runtime/
+*.tgz
+.DS_Store

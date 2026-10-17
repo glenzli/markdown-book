@@ -1,0 +1,73 @@
+:root {
+  color-scheme: light dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+body {
+  margin: 0;
+}
+.mb-launcher {
+  box-sizing: border-box;
+  max-width: 720px;
+  margin: 10vh auto;
+  padding: 32px;
+  color: CanvasText;
+}
+.mb-launcher h1 {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+.mb-launcher p {
+  line-height: 1.7;
+  opacity: 0.75;
+}
+.mb-launcher form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 24px 0;
+}
+.mb-launcher label {
+  width: 100%;
+  font-size: 13px;
+}
+.mb-launcher input {
+  flex: 1;
+  min-width: 150px;
+  padding: 10px;
+  border: 1px solid GrayText;
+  border-radius: 6px;
+  font: inherit;
+  background: Canvas;
+  color: CanvasText;
+}
+.mb-launcher button,
+.mb-switch-book {
+  cursor: pointer;
+  border: 1px solid GrayText;
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+}
+.mb-launcher .mb-books {
+  display: grid;
+  gap: 10px;
+}
+.mb-launcher .mb-books button {
+  text-align: left;
+}
+.mb-launcher .mb-books small {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 6px;
+  opacity: 0.6;
+}
+.mb-launcher [role="alert"] {
+  color: #bb422e;
+}
+.mb-switch-book {
+  font-size: 12px;
+  white-space: nowrap;
+}
