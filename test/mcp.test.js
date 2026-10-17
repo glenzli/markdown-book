@@ -33,6 +33,7 @@ test("packaged stdio tools check, open, reuse and close a real local reader", as
     "forget_recent_book",
     "open_reader",
     "open_workspace",
+    "reader_index",
     "reader_library",
     "reader_page",
     "reader_updates",

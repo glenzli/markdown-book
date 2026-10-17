@@ -1,4 +1,5 @@
 import { renderLibrary } from "./library.js";
+import { canDraftDiscussion, discussionRequest } from "./reference-data.js";
 const appMark = document.querySelector(".mb-app-mark")?.outerHTML ?? "";
 // MCP Apps host bridge. Navigation stays inside this panel, including opaque origins.
 const pending = new Map();
@@ -15,6 +16,7 @@ let book,
   currentChapter = null,
   cursor = 0,
   moduleUrl;
+let discussionAvailable = false;
 const send = (message) =>
   parent.postMessage({ jsonrpc: "2.0", ...message }, origin);
 function request(method, params = {}, allowStopped = false) {
@@ -51,6 +53,7 @@ async function call(name, args, allowStopped = false) {
 function persist() {
   if (!book) return;
   saved = {
+    ...saved,
     root: book.root,
     chapterId: currentChapter,
     scrollTop: window.scrollY,
@@ -58,6 +61,7 @@ function persist() {
   window.openai?.setWidgetState?.(saved);
 }
 function disposePage() {
+  delete globalThis.__markdownBookHost;
   document.dispatchEvent(new Event("mb:dispose"));
   document.getElementById("mb-page-module")?.remove();
   if (moduleUrl) URL.revokeObjectURL(moduleUrl);
@@ -154,6 +158,34 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   libraryReturn = null;
   switcher.addEventListener("click", () => void showLibrary().catch(showError));
   document.querySelector(".topbar").append(switcher);
+  const pageBook = book;
+  const current = () => {
+    if (stopped || generation !== pageGeneration || book !== pageBook)
+      throw new Error("阅读位置已变化，请重新选择引用。");
+  };
+  globalThis.__markdownBookHost = Object.freeze({
+    root: pageBook.root,
+    getLayout: () => saved.readerLayout,
+    setLayout: (readerLayout) => {
+      if (stopped) return;
+      saved = { ...saved, readerLayout };
+      persist();
+    },
+    loadIndex: async () => {
+      current();
+      const result = await call("reader_index", { viewKey });
+      current();
+      return result;
+    },
+    ...(discussionAvailable
+      ? {
+          draftDiscussion: (content) => {
+            current();
+            return request("ui/message", discussionRequest(content));
+          },
+        }
+      : {}),
+  });
   document.documentElement.dataset.mbPage = String(generation);
   moduleUrl = URL.createObjectURL(
     new Blob(
@@ -304,11 +336,12 @@ addEventListener("message", (event) => {
   }
 });
 async function initialize() {
-  await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.4.1" },
+  const initialized = await request("ui/initialize", {
+    appInfo: { name: "markdown-book", version: "0.5.0" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });
+  discussionAvailable = canDraftDiscussion(initialized.hostCapabilities);
   send({ method: "ui/notifications/initialized" });
   initial ??= window.openai?.toolOutput?.reader;
   if (!initial)

@@ -214,6 +214,18 @@ export function createBookMcp(options = {}) {
     attempt((input) => gateway.page(input.viewKey, input.chapterId)),
   );
   server.registerTool(
+    "reader_index",
+    {
+      title: "Read the book search index",
+      description:
+        "Read sanitized chapter, text and interactive-component search entries for this app view.",
+      inputSchema: { viewKey },
+      annotations,
+      _meta: appOnly,
+    },
+    attempt((input) => gateway.index(input.viewKey)),
+  );
+  server.registerTool(
     "reader_updates",
     {
       title: "Watch a book view",

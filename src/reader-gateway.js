@@ -264,7 +264,7 @@ export class ReaderGateway {
           // Rebundle only this page's generated components; plain pages never load Three.js.
           const compiled = await bundle({
             stdin: {
-              contents: `import { startReader } from ${JSON.stringify(core)}; startReader({${entries.join(",")}});`,
+              contents: `import { startReader } from ${JSON.stringify(core)}; startReader({${entries.join(",")}}, globalThis.__markdownBookHost);`,
               resolveDir: path.join(assets.out, "assets"),
               sourcefile: "native-reader.js",
               loader: "js",
@@ -341,6 +341,19 @@ export class ReaderGateway {
       digest: state.preview.result.digest,
       error: state.error,
     };
+  }
+
+  async index(viewKey) {
+    const view = this.requireView(viewKey);
+    const result = JSON.parse(
+      await readFile(
+        path.join(view.state.preview.result.outDir, "search.json"),
+        "utf8",
+      ),
+    );
+    if (this.views.get(viewKey) !== view)
+      throw new Error("Book selection changed.");
+    return result;
   }
 
   async updates(viewKey, cursor, waitMs) {

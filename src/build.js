@@ -21,7 +21,7 @@ import { renderPage } from "./template.js";
 
 const toolRoot = fileURLToPath(new URL("../", import.meta.url));
 const resolveDependency = createRequire(import.meta.url).resolve;
-export const toolVersion = "0.4.1";
+export const toolVersion = "0.5.0";
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 
 export async function checkBook(input = ".", options = {}) {
@@ -175,6 +175,7 @@ export async function checkBook(input = ".", options = {}) {
       "src/build.js",
       "src/manifest.js",
       "src/markdown.js",
+      "src/reading-index.js",
       "src/template.js",
       "src/brand.js",
       "assets/brand/markdown-book.svg",
@@ -294,6 +295,14 @@ export async function buildBook(input = ".", options = {}) {
         path.join(staging, "assets", path.basename(file.path)),
         file.contents,
       );
+    await writeFile(
+      path.join(staging, "search.json"),
+      JSON.stringify({
+        bookId: prepared.manifest.id,
+        digest: prepared.digest,
+        entries: prepared.chapters.flatMap((chapter) => chapter.readingEntries),
+      }) + "\n",
+    );
     await writeFile(
       path.join(staging, "reader-map.json"),
       JSON.stringify({

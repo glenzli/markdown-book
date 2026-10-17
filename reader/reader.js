@@ -1,3 +1,7 @@
+import { startNavigation } from "./navigation.js";
+import { startSearch } from "./search.js";
+import { startReferences } from "./references.js";
+
 const storage = {
   get(store, key) {
     try {
@@ -22,25 +26,15 @@ const storage = {
   },
 };
 
-export function startReader(registry) {
+export function startReader(registry, host) {
   const state = JSON.parse(document.getElementById("mb-state").textContent);
   const controller = new AbortController();
   const cleanups = new Set();
   let stopped = false;
   document.documentElement.dataset.readerReady = "true";
-  const navigationToggle = document.querySelector(".chapter-list-toggle");
-  navigationToggle?.addEventListener(
-    "click",
-    () => {
-      const expanded =
-        navigationToggle.getAttribute("aria-expanded") !== "true";
-      navigationToggle.setAttribute("aria-expanded", String(expanded));
-      document
-        .querySelector(".sidebar")
-        .toggleAttribute("data-expanded", expanded);
-    },
-    { signal: controller.signal },
-  );
+  startNavigation({ signal: controller.signal, storage, host });
+  startSearch({ state, signal: controller.signal, host });
+  startReferences({ state, signal: controller.signal, host });
   const theme = storage.get("localStorage", "markdown-book:theme");
   if (theme === "light" || theme === "dark")
     document.documentElement.dataset.theme = theme;

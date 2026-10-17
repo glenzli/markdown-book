@@ -13,6 +13,7 @@ import { visit } from "unist-util-visit";
 import GithubSlugger from "github-slugger";
 import { VFile } from "vfile";
 import { projectFile } from "./manifest.js";
+import { collectReadingEntries } from "./reading-index.js";
 
 const schema = {
   ...defaultSchema,
@@ -44,6 +45,7 @@ export async function renderChapter(book, chapter, base = "/") {
   const issues = [];
   const slugger = new GithubSlugger();
   let title = chapter.title;
+  let readingEntries;
   function collect() {
     return (tree) => {
       visit(tree, "element", (node) => {
@@ -79,6 +81,7 @@ export async function renderChapter(book, chapter, base = "/") {
           if (typeof value === "string") links.push({ node, property, value });
         }
       });
+      readingEntries = collectReadingEntries(tree, { ...chapter, title });
     };
   }
   // Sanitize before math rendering so generated KaTeX MathML is retained.
@@ -181,5 +184,6 @@ export async function renderChapter(book, chapter, base = "/") {
     components: [...components],
     assets: [...assets.values()],
     source,
+    readingEntries,
   };
 }

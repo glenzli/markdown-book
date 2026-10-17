@@ -44,6 +44,7 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
     assert.deepEqual(tool._meta["openai/ui"].entrypoints, [{ type }]);
   }
   for (const name of [
+    "reader_index",
     "reader_library",
     "choose_book_directory",
     "forget_recent_book",
@@ -77,7 +78,20 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
   assert.match(page.body, /data:image\/svg\+xml;base64,/);
   assert.match(page.body, /katex-mathml/);
   assert.match(page.body, /href="\/second\/#/);
-  assert.doesNotMatch(page.body, /alert\(1\)|onerror=/);
+  assert.doesNotMatch(
+    page.body.split('<script id="mb-state"')[0],
+    /alert\(1\)|onerror=/,
+  );
+  const indexA = await call("reader_index", { viewKey: a });
+  assert.equal(
+    indexA.entries.filter((entry) => entry.kind === "interactive").length,
+    1,
+  );
+  assert.ok(indexA.entries.every((entry) => !entry.text.includes("alert(1)")));
+  assert.equal(
+    (await call("reader_index", { viewKey: b })).bookId,
+    second.manifest.id,
+  );
   assert.match(page.stylesheet, /data:font\/woff2;base64,/);
   assert.ok(
     [...page.stylesheet.matchAll(/url\(([^)]+)\)/g)].every((match) =>
@@ -109,6 +123,11 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
     true,
   );
   assert.equal((await call("reader_page", { viewKey: b })).title, "另一本书");
+  assert.equal(
+    (await client.callTool({ name: "reader_index", arguments: { viewKey: a } }))
+      .isError,
+    true,
+  );
 });
 
 test("native view watches source, retains a good build on error, recovers, and discovers bounded books", async (t) => {

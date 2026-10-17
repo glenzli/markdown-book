@@ -2,7 +2,7 @@
 
 普通 Markdown 书稿、可复用的浏览器互动组件，以及本地与网站共用的阅读器。
 
-当前为 0.4.1 开发版。包含格式 v1、`check / serve / build`、公式与资源转换、静态回退、源文件更新预览，以及 Codex 插件。尚未发布 npm 包，也未部署网站。
+当前为 0.5.0 开发版。包含格式 v1、`check / serve / build`、公式与资源转换、静态回退、源文件更新预览，以及 Codex 插件。尚未发布 npm 包，也未部署网站。
 
 ## 本地开发
 
@@ -25,7 +25,7 @@ node bin/markdown-book.js build /path/to/book --out /tmp/book-site --base /books
 - [JSON Schema](schema/book.schema.json)：格式的机器约束。
 - [组件接口](src/component.d.ts)：挂载、中止与清理。
 - `src/manifest.js` 与 `src/markdown.js` 负责输入约束、正文和资源解析；`src/build.js` 与 `src/template.js` 负责静态产物。
-- `reader/reader.js` 负责共用页面与组件生命周期；`src/server.js` 负责本地监听与重建。`src/mcp.js` 注册 Codex 工具和原生入口，`src/reader-gateway.js` 管理独立视图，`reader/app.js` 负责 MCP App 宿主通信。
+- `src/reading-index.js` 为清理后的正文建立查找条目与源码位置。`reader/navigation.js`、`reader/search.js` 与 `reader/references.js` 分别管理目录、查找和阅读引用；`reader/reader.js` 负责共用页面与组件生命周期；`src/server.js` 负责本地监听与重建。`src/mcp.js` 注册 Codex 工具和原生入口，`src/reader-gateway.js` 管理独立视图，`reader/app.js` 负责 MCP App 宿主通信。
 
 ## Codex 本地插件
 
@@ -77,3 +77,13 @@ npm run package:check
 未提供宿主工作区时，使用 MCP 启动目录发现书籍；不会自动扫描主目录或文件系统根目录。从侧边栏打开后，优先显示最近阅读和当前工作区中的书籍，可按书名或位置筛选。最近记录包含最后打开的章节；点击即可继续，切换书籍后也可返回原阅读位置。选择文件夹使用 macOS、Windows 或 Linux 的系统目录选择器；路径输入位于折叠的备用入口。移出最近阅读仅移除本地记录。
 
 记录默认位于 `~/.markdown-book/recent-books.json`，可用 `MARKDOWN_BOOK_STATE` 指向其他本地状态文件。损坏或失效记录不会阻止打开新书，记录无法写入时仍可阅读。Linux 目录选择需要系统已安装 `zenity`；不可用时可使用工作区发现、最近记录或备用路径入口。
+
+### 目录、查找与讨论
+
+顶部的目录按钮可收起或展开章节栏，桌面端会记住选择；窄屏默认收起，选择章节后再次收起。右侧“本章内容”也可折叠。浏览器存储受限时，原生面板通过宿主视图状态保存目录偏好，阅读仍可继续。
+
+点击查找按钮，或按 `⌘K` / `Ctrl+K`，可在章节、正文与互动演示中查找。结果可筛选为“章节与正文”或“互动演示”，点击后定位到对应段落或演示。网页按需加载本地 `search.json`；原生面板通过仅 App 可见的 `reader_index` 读取同一份索引，不依赖外部搜索服务。
+
+在正文中选中文字后点击“讨论所选内容”，或使用顶部“与 AI 讨论”按钮，可预览将要引用的 Markdown、文件位置与行号，并补充问题。“新建 Codex 讨论”打开单独的可编辑对话草稿，由用户发送。没有选区时引用当前阅读小节；较长小节会明确标记节选。普通网页提供复制讨论内容，宿主不支持草稿接口时也使用这一入口。
+
+新对话入口采用 [OpenAI 官方会话扩展](https://developers.openai.com/plugins/build/extensions) 的 `ui/message`，设置 `target: "new"` 与 `send: false`，按宿主广告的能力启用。选书、翻页和选区变化不会自行发送正文。
