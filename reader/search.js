@@ -1,11 +1,13 @@
+import { translateDom } from "./i18n.js";
 import { searchEntries, searchExcerpt } from "./search-data.js";
 
-export function startSearch({ state, signal, host }) {
+export function startSearch({ state, signal, host, preferences }) {
+  const t = (key, values) => preferences.t(key, values);
   const trigger = document.querySelector(".search-toggle");
   const dialog = document.createElement("dialog");
   dialog.className = "reader-dialog search-dialog";
   dialog.setAttribute("aria-labelledby", "search-title");
-  dialog.innerHTML = `<div class="dialog-heading"><h2 id="search-title">查找书中内容</h2><button type="button" class="dialog-close" aria-label="关闭查找">×</button></div><div class="search-fields"><label><span class="visually-hidden">关键词</span><input type="search" placeholder="章节、正文或演示关键词" aria-label="查找关键词" autocomplete="off"></label><label><span class="visually-hidden">查找范围</span><select aria-label="查找范围"><option value="all">全部内容</option><option value="text">章节与正文</option><option value="interactive">互动演示</option></select></label></div><p class="search-status" role="status"></p><ol class="search-results"></ol>`;
+  dialog.innerHTML = `<div class="dialog-heading"><h2 id="search-title" data-mb-label="searchTitle">查找书中内容</h2><button type="button" class="dialog-close" aria-label="关闭查找" data-mb-label-aria-label="closeSearch">×</button></div><div class="search-fields"><label><span class="visually-hidden" data-mb-label="keyword">关键词</span><input type="search" placeholder="章节、正文或演示关键词" data-mb-label-placeholder="searchPlaceholder" aria-label="查找关键词" data-mb-label-aria-label="searchQuery" autocomplete="off"></label><label><span class="visually-hidden" data-mb-label="searchScope">查找范围</span><select aria-label="查找范围" data-mb-label-aria-label="searchScope"><option value="all" data-mb-label="allContent">全部内容</option><option value="text" data-mb-label="textContent">章节与正文</option><option value="interactive" data-mb-label="interactives">互动演示</option></select></label></div><p class="search-status" role="status"></p><ol class="search-results"></ol>`;
   document.body.append(dialog);
   const input = dialog.querySelector("input");
   const filter = dialog.querySelector("select");
@@ -18,7 +20,7 @@ export function startSearch({ state, signal, host }) {
       host?.loadIndex
         ? host.loadIndex()
         : fetch(`${state.base}search.json`, { signal }).then((response) => {
-            if (!response.ok) throw new Error("查找内容暂未加载，请稍后重试。");
+            if (!response.ok) throw new Error(t("indexUnavailable"));
             return response.json();
           })
     ).catch((error) => {
@@ -29,7 +31,7 @@ export function startSearch({ state, signal, host }) {
   }
   async function render() {
     const current = ++generation;
-    status.textContent = "正在加载…";
+    status.textContent = t("loading");
     try {
       const data = await index();
       if (signal.aborted || current !== generation || !dialog.open) return;
@@ -42,7 +44,7 @@ export function startSearch({ state, signal, host }) {
         const title = document.createElement("strong");
         title.textContent =
           entry.kind === "interactive"
-            ? `${entry.heading} · 互动演示`
+            ? t("interactiveHeading", { title: entry.heading })
             : entry.heading;
         const location = document.createElement("span");
         location.className = "search-location";
@@ -54,13 +56,23 @@ export function startSearch({ state, signal, host }) {
         results.append(row);
       }
       status.textContent = found.total
-        ? `${found.total} 条结果${found.total > found.entries.length ? `，显示前 ${found.entries.length} 条` : ""}`
-        : "没有找到相关内容，可换个关键词。";
+        ? t("searchCount", { count: found.total }) +
+          (found.total > found.entries.length
+            ? t("searchLimited", { count: found.entries.length })
+            : "")
+        : t("noResults");
     } catch (error) {
       if (!signal.aborted && current === generation)
         status.textContent = error.message;
     }
   }
+  preferences.subscribe(
+    () => {
+      translateDom(preferences);
+      if (dialog.open) void render();
+    },
+    { signal },
+  );
   function open() {
     if (!dialog.open) dialog.showModal();
     input.focus();

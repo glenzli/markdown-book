@@ -1,7 +1,7 @@
 import path from "node:path";
 import { ReaderLibrary } from "./reader-library.js";
 import { readFile, readdir, realpath, stat } from "node:fs/promises";
-import { build as bundle } from "esbuild";
+import { build as bundle } from "./bundler.js";
 import { loadBook, projectFile } from "./manifest.js";
 import { serveBook } from "./server.js";
 

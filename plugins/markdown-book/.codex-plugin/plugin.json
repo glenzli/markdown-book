@@ -1,7 +1,7 @@
 {
   "name": "markdown-book",
-  "version": "0.5.1",
-  "description": "Preview and validate local Markdown books with interactive components.",
+  "version": "0.6.0",
+  "description": "Read, write and validate Markdown books with portable interactive components.",
   "author": {
     "name": "glenzli",
     "url": "https://github.com/glenzli"

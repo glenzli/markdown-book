@@ -1,5 +1,7 @@
 # Markdown Book 格式 v1
 
+中文 · [English](format-v1.en.md)
+
 本规范定义以普通 Markdown 和可选浏览器互动组件组成的书籍源码。它是 Markdown 的书籍配置约定，不声称是所有阅读器共同支持的标准。格式版本为 `1`，工具包有独立的语义版本。
 
 ## 书籍清单
@@ -72,7 +74,7 @@ export function mount({ element, props, signal }) {
 
 ## 输出与本地预览
 
-`build --base /books/imaging/` 生成书目首页、每章 index.html、带内容指纹的 JS/CSS/字体、本地资源、catalog.json、原生面板组件映射 reader-map.json 与 build.json。输出目录内容挂载到指定 base。默认输出为书籍目录的 dist；仅覆盖此前由本工具为同一 book id 生成的输出，拒绝覆盖书籍根或未知目录。
+`build --base /books/imaging/` 生成书目首页、每章 index.html、带内容指纹的 JS/CSS/字体、本地资源、catalog.json、search.json、原生面板组件映射 reader-map.json 与 build.json。输出目录内容挂载到指定 base。默认输出为书籍目录的 dist；仅覆盖此前由本工具为同一 book id 生成的输出，拒绝覆盖书籍根或未知目录。
 
 build.json 记录工具与格式版本、输入摘要、观测到的 Git 提交和工作树状态。网页终态可重新生成，书稿与组件源码是维护入口。构建不会提交 Git 或部署网站。
 
@@ -89,3 +91,9 @@ build.json 记录工具与格式版本、输入摘要、观测到的 Git 提交�
 ## 可选的三维运行时
 
 v1 的 `mount` 接口可以加载 Three.js 场景。工具提供 `@glenzli/markdown-book/three` 模块，在构建时解析到工具持有的固定版本引擎，不要求书籍额外安装依赖；这是运行时能力，不改变书籍格式版本。仍需同一个静态回退容器。生命周期、加载边界和模型要求见 [三维组件](three-components.md)。
+
+## 字段与界面偏好
+
+完整字段表见 [英文规范](format-v1.en.md#manifest-and-resource-boundary) 与 JSON Schema。清单不接受未定义字段；description 默认为空，language 默认为 zh-CN，components 默认为空对象，组件 props 默认为空对象。章节可提供 title，否则从正文标题获取。
+
+language 表示书稿语言，不控制阅读器界面。阅读器的语言和明暗主题均可自动或手动选择；切换界面语言不翻译正文、章节标题、组件界面或静态图。写作与迁移示例见 [写作指南](authoring.md)。

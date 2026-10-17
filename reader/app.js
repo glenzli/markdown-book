@@ -1,3 +1,4 @@
+import { createBrowserPreferences } from "./preferences.js";
 import { renderLibrary } from "./library.js";
 import { canDraftDiscussion, discussionRequest } from "./reference-data.js";
 const appMark = document.querySelector(".mb-app-mark")?.outerHTML ?? "";
@@ -12,6 +13,23 @@ let sequence = 0,
   pollGeneration = 0,
   pageGeneration = 0;
 let saved = window.openai?.widgetState ?? {};
+const preferenceSession = createBrowserPreferences({
+  observeHostLanguage: true,
+  initial: saved.preferences,
+  host: {
+    locale: window.openai?.locale ?? document.documentElement.lang,
+    theme: window.openai?.theme,
+  },
+  onSave(preferences) {
+    saved = { ...saved, preferences };
+    window.openai?.setWidgetState?.(saved);
+  },
+});
+const preferences = preferenceSession.preferences;
+const t = (key, values) => preferences.t(key, values);
+let disposeLibrary;
+const connecting = document.querySelector('[role="status"]');
+if (connecting) connecting.textContent = t("connecting");
 let book,
   currentChapter = null,
   cursor = 0,
@@ -21,13 +39,13 @@ const send = (message) =>
   parent.postMessage({ jsonrpc: "2.0", ...message }, origin);
 function request(method, params = {}, allowStopped = false) {
   if (stopped && !allowStopped)
-    return Promise.reject(new Error("阅读面板已关闭"));
+    return Promise.reject(new Error(t("panelClosed")));
   const id = ++sequence;
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
       () => {
         pending.delete(id);
-        reject(new Error("阅读器连接超时"));
+        reject(new Error(t("connectionTimeout")));
       },
       method === "tools/call" && params.name === "choose_book_directory"
         ? 300000
@@ -46,7 +64,7 @@ async function call(name, args, allowStopped = false) {
   if (result.isError)
     throw new Error(
       result.content?.find((item) => item.type === "text")?.text ??
-        "阅读器暂不可用",
+        t("readerUnavailable"),
     );
   return result.structuredContent;
 }
@@ -61,6 +79,8 @@ function persist() {
   window.openai?.setWidgetState?.(saved);
 }
 function disposePage() {
+  disposeLibrary?.();
+  disposeLibrary = undefined;
   delete globalThis.__markdownBookHost;
   document.dispatchEvent(new Event("mb:dispose"));
   document.getElementById("mb-page-module")?.remove();
@@ -102,8 +122,9 @@ async function showLibrary(root = libraryRoot) {
   if (stopped || generation !== openingGeneration) return;
   libraryRoot = root;
   document.getElementById("mb-book-style")?.remove();
-  renderLibrary({
+  disposeLibrary = renderLibrary({
     data,
+    preferences,
     mark: appMark,
     onError: showError,
     onOpen: (root, chapterId) => {
@@ -122,12 +143,7 @@ async function showLibrary(root = libraryRoot) {
       if (selected.cancelled) return;
       if (selected.choices.length === 1) launch(selected.choices[0].root);
       else if (selected.choices.length) await showLibrary(selected.root);
-      else
-        showError(
-          new Error(
-            "此文件夹中未找到书籍，请选择包含 book.json 的书籍或项目文件夹。",
-          ),
-        );
+      else showError(new Error(t("noBookFolder")));
     },
   });
   window.scrollTo(0, 0);
@@ -154,17 +170,19 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   const switcher = document.createElement("button");
   switcher.type = "button";
   switcher.className = "mb-switch-book";
-  switcher.textContent = "切换书籍";
+  switcher.textContent = t("switchBook");
+  switcher.dataset.mbLabel = "switchBook";
   libraryReturn = null;
   switcher.addEventListener("click", () => void showLibrary().catch(showError));
   document.querySelector(".topbar").append(switcher);
   const pageBook = book;
   const current = () => {
     if (stopped || generation !== pageGeneration || book !== pageBook)
-      throw new Error("阅读位置已变化，请重新选择引用。");
+      throw new Error(t("positionChanged"));
   };
   globalThis.__markdownBookHost = Object.freeze({
     root: pageBook.root,
+    preferences,
     getLayout: () => saved.readerLayout,
     setLayout: (readerLayout) => {
       if (stopped) return;
@@ -199,15 +217,14 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   script.id = "mb-page-module";
   script.type = "module";
   script.src = moduleUrl;
-  script.onerror = () =>
-    showError(new Error("互动代码未加载，静态内容仍可阅读。"));
+  script.onerror = () => showError(new Error(t("scriptUnavailable")));
   document.head.append(script);
   if (anchor)
     document.getElementById(decodeURIComponent(anchor))?.scrollIntoView();
   else window.scrollTo(0, scrollTop);
   persist();
   if (result.error)
-    showError(new Error(`更新失败，保留上次成功版本：${result.error}`));
+    showError(new Error(t("updateFailed", { error: result.error })));
 }
 async function open(root, chapterId, resumeScroll = 0) {
   const selection = ++openingGeneration;
@@ -237,7 +254,7 @@ async function open(root, chapterId, resumeScroll = 0) {
       if (update.cursor !== cursor) {
         cursor = update.cursor;
         if (update.error)
-          showError(new Error(`更新失败，保留上次成功版本：${update.error}`));
+          showError(new Error(t("updateFailed", { error: update.error })));
         else await page(currentChapter, "", window.scrollY);
       }
     } catch (error) {
@@ -312,13 +329,16 @@ addEventListener("message", (event) => {
       message.params?.structuredContent?.reader ??
       {};
     receiveSeed?.();
+  } else if (message.method === "ui/notifications/host-context-changed") {
+    preferences.updateHost(message.params ?? {});
   } else if (message.method === "ui/resource-teardown") {
+    preferenceSession.dispose();
     stopped = true;
     ++pollGeneration;
     disposePage();
     for (const work of pending.values()) {
       clearTimeout(work.timer);
-      work.reject(new Error("阅读面板已关闭"));
+      work.reject(new Error(t("panelClosed")));
     }
     pending.clear();
     void call("close_reader_view", { viewKey }, true)
@@ -337,18 +357,19 @@ addEventListener("message", (event) => {
 });
 async function initialize() {
   const initialized = await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.5.1" },
+    appInfo: { name: "markdown-book", version: "0.6.0" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });
   discussionAvailable = canDraftDiscussion(initialized.hostCapabilities);
+  preferences.updateHost(initialized.hostContext ?? {});
   send({ method: "ui/notifications/initialized" });
   initial ??= window.openai?.toolOutput?.reader;
   if (!initial)
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         receiveSeed = undefined;
-        reject(new Error("未收到书籍打开信息"));
+        reject(new Error(t("missingSeed")));
       }, 25000);
       receiveSeed = () => {
         clearTimeout(timer);

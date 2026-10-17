@@ -1,6 +1,8 @@
+import { translateDom } from "./i18n.js";
 import { referenceContent } from "./reference-data.js";
 
-export function startReferences({ state, signal, host }) {
+export function startReferences({ state, signal, host, preferences }) {
+  const t = (key, values) => preferences.t(key, values);
   const trigger = document.querySelector(".discussion-toggle");
   if (!state.chapter) {
     trigger.hidden = true;
@@ -10,11 +12,12 @@ export function startReferences({ state, signal, host }) {
   const dialog = document.createElement("dialog");
   dialog.className = "reader-dialog reference-dialog";
   dialog.setAttribute("aria-labelledby", "discussion-title");
-  dialog.innerHTML = `<div class="dialog-heading"><h2 id="discussion-title">与 AI 讨论</h2><button type="button" class="dialog-close" aria-label="关闭讨论">×</button></div><p class="reference-location"></p><pre class="reference-preview"></pre><label class="question-label">想讨论的问题（可选）<textarea rows="3" placeholder="例如：这一步为什么成立？"></textarea></label><p class="reference-status" role="status"></p><div class="reference-actions"><button type="button" class="reference-submit"></button></div>`;
+  dialog.innerHTML = `<div class="dialog-heading"><h2 id="discussion-title" data-mb-label="discuss">与 AI 讨论</h2><button type="button" class="dialog-close" aria-label="关闭讨论" data-mb-label-aria-label="closeDiscussion">×</button></div><p class="reference-location"></p><pre class="reference-preview"></pre><label class="question-label"><span data-mb-label="questionLabel">想讨论的问题（可选）</span><textarea rows="3" placeholder="例如：这一步为什么成立？" data-mb-label-placeholder="questionPlaceholder"></textarea></label><p class="reference-status" role="status"></p><div class="reference-actions"><button type="button" class="reference-submit"></button></div>`;
   const quote = document.createElement("button");
   quote.type = "button";
   quote.className = "selection-reference";
-  quote.textContent = "讨论所选内容";
+  quote.dataset.mbLabel = "discussSelection";
+  quote.textContent = t("discussSelection");
   quote.hidden = true;
   document.body.append(dialog, quote);
   const preview = dialog.querySelector(".reference-preview");
@@ -23,8 +26,20 @@ export function startReferences({ state, signal, host }) {
   const question = dialog.querySelector("textarea");
   const submit = dialog.querySelector(".reference-submit");
   const native = Boolean(host?.draftDiscussion);
-  submit.textContent = native ? "新建 Codex 讨论" : "复制讨论内容";
+  submit.dataset.mbLabel = native ? "newDiscussion" : "copyDiscussion";
   let selection, context;
+  function showStatus(key) {
+    status.dataset.mbLabel = key;
+    status.textContent = t(key);
+  }
+  preferences.subscribe(
+    () => {
+      translateDom(preferences);
+      if (context)
+        location.textContent = `${state.bookTitle} · ${host?.root ? host.root + "/" : ""}${state.chapter.file}:${context.lineStart}-${context.lineEnd}${context.excerpt ? t("excerpt") : ""}`;
+    },
+    { signal },
+  );
   const lineNode = (node) =>
     (node.nodeType === 1 ? node : node.parentElement)?.closest(
       "[data-mb-line-start]",
@@ -85,17 +100,22 @@ export function startReferences({ state, signal, host }) {
   function open() {
     context = selection ?? currentSection();
     quote.hidden = true;
-    status.textContent = native
-      ? "引用会放入新的 Codex 对话草稿，补充问题后发送。"
-      : "复制后可粘贴到 Codex 或其他 AI 对话中。";
+    showStatus(native ? "draftHint" : "copyHint");
     try {
-      const reference = referenceContent(state, context, "", host?.root);
+      const reference = referenceContent(
+        state,
+        context,
+        "",
+        host?.root,
+        preferences.locale,
+      );
       preview.textContent = reference.source;
-      location.textContent = `${state.bookTitle} · ${reference.location}${context.excerpt ? " · 节选" : ""}`;
+      location.textContent = `${state.bookTitle} · ${reference.location}${context.excerpt ? t("excerpt") : ""}`;
       submit.disabled = false;
     } catch (error) {
       preview.textContent = "";
       location.textContent = state.chapter.title;
+      delete status.dataset.mbLabel;
       status.textContent = error.message;
       submit.disabled = true;
     }
@@ -136,21 +156,25 @@ export function startReferences({ state, signal, host }) {
           context,
           question.value,
           host?.root,
+          preferences.locale,
         );
         if (native) {
           await host.draftDiscussion(reference.content);
           if (!signal.aborted) {
-            status.textContent = "已打开新的讨论草稿。";
+            showStatus("draftOpened");
             dialog.close();
           }
         } else {
           await navigator.clipboard.writeText(
             reference.content.map((item) => item.text).join("\n\n"),
           );
-          if (!signal.aborted) status.textContent = "讨论内容已复制。";
+          if (!signal.aborted) showStatus("discussionCopied");
         }
       } catch (error) {
-        if (!signal.aborted) status.textContent = error.message;
+        if (!signal.aborted) {
+          delete status.dataset.mbLabel;
+          status.textContent = error.message;
+        }
       } finally {
         if (!signal.aborted) submit.disabled = false;
       }

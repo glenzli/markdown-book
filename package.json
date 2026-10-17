@@ -1,6 +1,6 @@
 {
   "name": "@glenzli/markdown-book",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Markdown books with portable interactive components, a shared reader, and static builds.",
   "type": "module",
   "license": "MIT",
@@ -39,12 +39,17 @@
     "plugin:bundle": "node scripts/bundle-plugin.js",
     "package:check": "node scripts/check-package.js",
     "brand:build": "node scripts/build-brand.js",
-    "brand:check": "node scripts/build-brand.js --check"
+    "brand:check": "node scripts/build-brand.js --check",
+    "plugin:dist": "node scripts/plugin-dist.js build",
+    "plugin:verify": "node scripts/plugin-dist.js verify",
+    "plugin:sync": "node scripts/plugin-dist.js sync",
+    "release:check": "npm run format:check && npm run check && npm run brand:check && npm run package:check && npm test"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
     "chokidar": "^4.0.3",
     "esbuild": "0.28.2",
+    "esbuild-wasm": "0.28.2",
     "github-slugger": "^2.0.0",
     "katex": "^0.16.22",
     "rehype-katex": "^7.0.1",

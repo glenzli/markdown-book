@@ -1,0 +1,116 @@
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+.preferences-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.preferences-toggle svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.preferences-toggle:hover {
+  background: color-mix(in srgb, CanvasText 6%, transparent);
+}
+.mb-preferences {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+  border-radius: 9px;
+  color: CanvasText;
+  background: Canvas;
+  font:
+    13px/1.6 ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+.mb-preferences::backdrop {
+  background: #0005;
+}
+.mb-preferences-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.mb-preferences h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.mb-preferences .mb-preferences-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+.mb-preferences label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 12px 0;
+}
+.mb-preferences select {
+  min-width: 112px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+  border-radius: 5px;
+  color: inherit;
+  background: Canvas;
+  font: inherit;
+}
+.mb-preferences p {
+  margin: 16px 0 0;
+  opacity: 0.65;
+  font-size: 11px;
+}
+.preferences-toggle:focus-visible,
+.mb-preferences :focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+.mb-library-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.mb-library-heading {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (pointer: coarse) {
+  .preferences-toggle {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+  .mb-preferences select {
+    min-height: 36px;
+  }
+}
+
+.mb-launcher .preferences-toggle {
+  padding: 4px;
+}

@@ -1,4 +1,4 @@
-export function startNavigation({ signal, storage, host }) {
+export function startNavigation({ signal, storage, host, preferences }) {
   const toggle = document.querySelector(".navigation-toggle");
   const sidebar = document.getElementById("book-sidebar");
   const layout = document.querySelector(".reader-layout");
@@ -29,8 +29,19 @@ export function startNavigation({ signal, storage, host }) {
     sidebar.hidden = !open;
     layout.toggleAttribute("data-sidebar-collapsed", !open);
     toggle.setAttribute("aria-expanded", String(open));
-    toggle.setAttribute("aria-label", open ? "收起章节目录" : "展开章节目录");
-    toggle.title = open ? "收起章节目录" : "展开章节目录";
+    toggle.setAttribute(
+      "data-mb-label-aria-label",
+      open ? "collapseChapters" : "expandChapters",
+    );
+    toggle.setAttribute(
+      "data-mb-label-title",
+      open ? "collapseChapters" : "expandChapters",
+    );
+    toggle.setAttribute(
+      "aria-label",
+      preferences.t(open ? "collapseChapters" : "expandChapters"),
+    );
+    toggle.title = preferences.t(open ? "collapseChapters" : "expandChapters");
   }
   toggle.addEventListener(
     "click",
@@ -69,5 +80,5 @@ export function startNavigation({ signal, storage, host }) {
     },
     { signal },
   );
-  render();
+  preferences.subscribe(render, { signal });
 }

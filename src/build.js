@@ -14,14 +14,14 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { build as bundle } from "esbuild";
+import { build as bundle } from "./bundler.js";
 import { loadBook, inside, normalizeBase } from "./manifest.js";
 import { renderChapter } from "./markdown.js";
 import { renderPage } from "./template.js";
 
 const toolRoot = fileURLToPath(new URL("../", import.meta.url));
 const resolveDependency = createRequire(import.meta.url).resolve;
-export const toolVersion = "0.5.1";
+export const toolVersion = "0.6.0";
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 
 export async function checkBook(input = ".", options = {}) {
@@ -50,7 +50,7 @@ export async function checkBook(input = ".", options = {}) {
       },
     ]),
   );
-  const moduleSource = `import ${JSON.stringify(path.join(toolRoot, "reader/style.css"))};\nimport ${JSON.stringify(resolveDependency("katex/dist/katex.min.css"))};\nimport { startReader } from ${JSON.stringify(path.join(toolRoot, "reader/reader.js"))};\nconst registry = {${Object.entries(
+  const moduleSource = `import ${JSON.stringify(path.join(toolRoot, "reader/style.css"))};\nimport ${JSON.stringify(path.join(toolRoot, "reader/preferences.css"))};\nimport ${JSON.stringify(resolveDependency("katex/dist/katex.min.css"))};\nimport { startReader } from ${JSON.stringify(path.join(toolRoot, "reader/reader.js"))};\nconst registry = {${Object.entries(
     registry,
   )
     .map(
