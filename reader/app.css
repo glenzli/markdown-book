@@ -9,15 +9,16 @@ body {
   box-sizing: border-box;
   max-width: 720px;
   margin: 10vh auto;
-  padding: 32px;
+  padding: 28px;
   color: CanvasText;
 }
 .mb-launcher h1 {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.035em;
 }
 .mb-launcher p {
+  font-size: 13px;
   line-height: 1.7;
   opacity: 0.75;
 }
@@ -25,7 +26,7 @@ body {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 24px 0;
+  margin: 18px 0;
 }
 .mb-launcher label {
   width: 100%;
@@ -34,26 +35,31 @@ body {
 .mb-launcher input {
   flex: 1;
   min-width: 150px;
-  padding: 10px;
-  border: 1px solid GrayText;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
   border-radius: 6px;
   font: inherit;
+  font-size: 13px;
+  line-height: 18px;
   background: Canvas;
   color: CanvasText;
 }
 .mb-launcher button,
 .mb-switch-book {
   cursor: pointer;
-  border: 1px solid GrayText;
-  border-radius: 6px;
-  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, CanvasText 22%, transparent);
+  border-radius: 5px;
+  padding: 5px 10px;
+  min-height: 28px;
   background: Canvas;
   color: CanvasText;
   font: inherit;
+  font-size: 12px;
+  line-height: 16px;
 }
 .mb-launcher .mb-books {
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 .mb-launcher .mb-books button {
   text-align: left;
@@ -74,10 +80,10 @@ body {
 
 .mb-app-mark {
   display: inline-block;
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   vertical-align: middle;
-  margin-right: 12px;
+  margin-right: 10px;
 }
 .mb-app-mark svg {
   width: 100%;
@@ -95,13 +101,12 @@ body {
 }
 .mb-library-actions {
   display: flex;
-  gap: 8px;
-  margin: 24px 0;
+  gap: 6px;
+  margin: 18px 0;
 }
 .mb-launcher .mb-choose-directory {
-  background: CanvasText;
-  color: Canvas;
-  border-color: CanvasText;
+  background: color-mix(in srgb, CanvasText 6%, Canvas);
+  font-weight: 500;
 }
 .mb-launcher button:disabled {
   opacity: 0.55;
@@ -119,7 +124,7 @@ body {
 .mb-launcher h2 {
   font-size: 13px;
   font-weight: 600;
-  margin: 28px 0 12px;
+  margin: 24px 0 10px;
   opacity: 0.7;
 }
 .mb-launcher .mb-book-row {
@@ -133,24 +138,24 @@ body {
   min-width: 0;
   border: 0;
   border-radius: 0;
-  padding: 16px;
+  padding: 12px 14px;
   text-align: left;
   line-height: 1.5;
 }
 .mb-book-open strong {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
 }
 .mb-launcher .mb-books small {
   font-size: 11px;
-  margin-top: 5px;
+  margin-top: 3px;
   line-height: 1.6;
 }
 .mb-launcher .mb-forget-book {
-  flex: 0 0 36px;
+  flex: 0 0 28px;
   border: 0;
   border-radius: 0;
-  font-size: 21px;
+  font-size: 18px;
   opacity: 0.5;
   padding: 0;
 }
@@ -172,7 +177,7 @@ body {
 }
 .mb-resume {
   display: block;
-  margin-top: 5px;
+  margin-top: 3px;
   font-size: 11px;
   opacity: 0.75;
 }
@@ -203,17 +208,34 @@ body {
     padding: 22px;
   }
   .mb-library-heading h1 {
-    font-size: 24px;
+    font-size: 22px;
   }
   .mb-app-mark {
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
     margin-right: 8px;
   }
   .mb-library-back {
     font-size: 11px !important;
   }
   .mb-launcher .mb-book-open {
-    padding: 13px;
+    padding: 11px 12px;
+  }
+}
+
+.mb-launcher button:hover:not(:disabled),
+.mb-switch-book:hover {
+  background: color-mix(in srgb, CanvasText 6%, Canvas);
+}
+.mb-launcher .mb-choose-directory:hover:not(:disabled) {
+  background: color-mix(in srgb, CanvasText 10%, Canvas);
+}
+@media (pointer: coarse) {
+  .mb-launcher button,
+  .mb-switch-book {
+    min-height: 36px;
+  }
+  .mb-launcher .mb-forget-book {
+    flex-basis: 36px;
   }
 }
