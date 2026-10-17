@@ -1,11 +1,12 @@
 import { brandIcons } from "./brand.js";
 import path from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { checkBook, toolVersion } from "./build.js";
-import { ReaderGateway } from "./reader-gateway.js";
+import { ReaderGateway, discoverBooks } from "./reader-gateway.js";
 import { readerAppHtml, readerResourceUri } from "./reader-app.js";
 
 export function createBookMcp(options = {}) {
@@ -14,7 +15,7 @@ export function createBookMcp(options = {}) {
     version: toolVersion,
     icons: brandIcons,
   });
-  const gateway = new ReaderGateway();
+  const gateway = new ReaderGateway(options);
   const result = (value) => ({ content: [], structuredContent: value });
   const attempt = (fn) => async (args) => {
     try {
@@ -40,20 +41,26 @@ export function createBookMcp(options = {}) {
   const chapterId = z.string().optional();
   const viewKey = z.string().regex(/^[a-f0-9]{32}$/);
   const appOnly = { ui: { visibility: ["app"] } };
-  async function currentRoot() {
+  async function currentRoots() {
     if (server.server.getClientCapabilities()?.roots) {
       try {
         const { roots } = await server.server.listRoots(undefined, {
           timeout: 3000,
         });
-        if (roots.length === 1 && roots[0].uri.startsWith("file:"))
-          return fileURLToPath(roots[0].uri);
-        return undefined;
+        return roots
+          .filter((root) => root.uri.startsWith("file:"))
+          .map((root) => fileURLToPath(root.uri));
       } catch {
-        return undefined;
+        return [];
       }
     }
-    return options.defaultRoot;
+    if (options.defaultRoot) return [options.defaultRoot];
+    const cwd = process.cwd();
+    return cwd === homedir() || cwd === path.parse(cwd).root ? [] : [cwd];
+  }
+  async function currentRoot() {
+    const roots = await currentRoots();
+    return roots.length === 1 ? roots[0] : undefined;
   }
   server.registerResource(
     "markdown-book-reader",
@@ -119,6 +126,9 @@ export function createBookMcp(options = {}) {
             _meta: {
               reader: {
                 ...(requested ? { root: opened?.root ?? requested } : {}),
+                ...(entrypoint === "global" && !input.root
+                  ? { choose: true }
+                  : {}),
                 ...(input.chapterId ? { chapterId: input.chapterId } : {}),
               },
             },
@@ -132,6 +142,51 @@ export function createBookMcp(options = {}) {
       },
     );
   }
+  server.registerTool(
+    "reader_library",
+    {
+      title: "List books",
+      description:
+        "List local recent books and discover books in the host workspaces or one selected folder.",
+      inputSchema: { root },
+      annotations,
+      _meta: appOnly,
+    },
+    attempt(async (input) =>
+      gateway.listBooks(input.root ? [input.root] : await currentRoots()),
+    ),
+  );
+  server.registerTool(
+    "choose_book_directory",
+    {
+      title: "Choose a book folder",
+      description:
+        "Show the system folder chooser after the user clicks Choose Folder. Cancellation leaves the current reader unchanged.",
+      inputSchema: {},
+      annotations: { ...annotations, readOnlyHint: false },
+      _meta: appOnly,
+    },
+    attempt(async () => {
+      const selected = await gateway.library.choose();
+      if (!selected) return { cancelled: true };
+      return { root: selected, choices: await discoverBooks(selected) };
+    }),
+  );
+  server.registerTool(
+    "forget_recent_book",
+    {
+      title: "Remove a recent book",
+      description:
+        "Remove a local recent-book record. Never modifies or deletes book source.",
+      inputSchema: { root: z.string() },
+      annotations: { ...annotations, readOnlyHint: false },
+      _meta: appOnly,
+    },
+    attempt(async ({ root }) => {
+      await gateway.library.forget(root);
+      return { removed: true };
+    }),
+  );
   server.registerTool(
     "reader_view",
     {

@@ -1,3 +1,4 @@
+import { renderLibrary } from "./library.js";
 const appMark = document.querySelector(".mb-app-mark")?.outerHTML ?? "";
 // MCP Apps host bridge. Navigation stays inside this panel, including opaque origins.
 const pending = new Map();
@@ -21,10 +22,15 @@ function request(method, params = {}, allowStopped = false) {
     return Promise.reject(new Error("阅读面板已关闭"));
   const id = ++sequence;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      reject(new Error("阅读器连接超时"));
-    }, 25000);
+    const timer = setTimeout(
+      () => {
+        pending.delete(id);
+        reject(new Error("阅读器连接超时"));
+      },
+      method === "tools/call" && params.name === "choose_book_directory"
+        ? 300000
+        : 25000,
+    );
     pending.set(id, { resolve, reject, timer });
     send({ id, method, params });
   });
@@ -43,8 +49,9 @@ async function call(name, args, allowStopped = false) {
   return result.structuredContent;
 }
 function persist() {
+  if (!book) return;
   saved = {
-    root: book?.root,
+    root: book.root,
     chapterId: currentChapter,
     scrollTop: window.scrollY,
   };
@@ -69,33 +76,57 @@ function showError(error) {
   notice.textContent = error.message ?? String(error);
   notice.hidden = false;
 }
-function chooser(choices = [], workspace = "") {
+let libraryRoot,
+  libraryReturn,
+  openingGeneration = 0;
+async function showLibrary(root = libraryRoot) {
+  persist();
+  if (book)
+    libraryReturn = {
+      root: book.root,
+      chapterId: currentChapter,
+      scrollTop: window.scrollY,
+    };
+  const previous = libraryReturn;
+  const generation = ++openingGeneration;
   ++pollGeneration;
   ++pageGeneration;
+  book = null;
   disposePage();
+  await call("close_reader_view", { viewKey });
+  const data = await call("reader_library", { ...(root ? { root } : {}) });
+  if (stopped || generation !== openingGeneration) return;
+  libraryRoot = root;
   document.getElementById("mb-book-style")?.remove();
-  document.body.innerHTML =
-    '<main class="mb-launcher"><h1>Markdown Book</h1><p>选择包含 book.json 的书籍目录，或扫描当前项目中的书籍。</p><form><label for="mb-root">本地书籍或项目目录</label><input id="mb-root" required placeholder="/absolute/path/to/book"><button type="submit">打开</button></form><p role="alert" hidden></p><div class="mb-books"></div></main>';
-  document.querySelector("h1").insertAdjacentHTML("afterbegin", appMark);
-  document.getElementById("mb-root").value = workspace;
-  const list = document.querySelector(".mb-books");
-  for (const choice of choices) {
-    const button = document.createElement("button"),
-      title = document.createElement("strong"),
-      root = document.createElement("small");
-    title.textContent = choice.title;
-    root.textContent = choice.root;
-    button.append(title, root);
-    button.addEventListener(
-      "click",
-      () => void open(choice.root).catch(showError),
-    );
-    list.append(button);
-  }
-  document.querySelector("form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    void open(document.getElementById("mb-root").value.trim()).catch(showError);
+  renderLibrary({
+    data,
+    mark: appMark,
+    onError: showError,
+    onOpen: (root, chapterId) => {
+      launch(root, chapterId);
+    },
+    onBack: previous
+      ? () => launch(previous.root, previous.chapterId, previous.scrollTop)
+      : null,
+    onRefresh: () => showLibrary(root),
+    onForget: async (root) => {
+      await call("forget_recent_book", { root });
+      await showLibrary();
+    },
+    onChoose: async () => {
+      const selected = await call("choose_book_directory");
+      if (selected.cancelled) return;
+      if (selected.choices.length === 1) launch(selected.choices[0].root);
+      else if (selected.choices.length) await showLibrary(selected.root);
+      else
+        showError(
+          new Error(
+            "此文件夹中未找到书籍，请选择包含 book.json 的书籍或项目文件夹。",
+          ),
+        );
+    },
   });
+  window.scrollTo(0, 0);
 }
 async function page(chapterId = null, anchor = "", scrollTop = 0) {
   const generation = ++pageGeneration;
@@ -120,7 +151,8 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   switcher.type = "button";
   switcher.className = "mb-switch-book";
   switcher.textContent = "切换书籍";
-  switcher.addEventListener("click", () => chooser([], book.root));
+  libraryReturn = null;
+  switcher.addEventListener("click", () => void showLibrary().catch(showError));
   document.querySelector(".topbar").append(switcher);
   document.documentElement.dataset.mbPage = String(generation);
   moduleUrl = URL.createObjectURL(
@@ -146,17 +178,21 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
     showError(new Error(`更新失败，保留上次成功版本：${result.error}`));
 }
 async function open(root, chapterId, resumeScroll = 0) {
+  const selection = ++openingGeneration;
+  ++pollGeneration;
+  ++pageGeneration;
   const result = await call("reader_view", {
     viewKey,
     ...(root ? { root } : {}),
   });
-  if (stopped) return;
+  if (stopped || selection !== openingGeneration) return;
   if (!result.root) {
-    chooser(result.choices, result.workspace);
+    await showLibrary(result.workspace);
     return;
   }
   book = result;
   await page(chapterId ?? null, "", resumeScroll);
+  if (stopped || selection !== openingGeneration) return;
   const generation = ++pollGeneration;
   while (!stopped && generation === pollGeneration) {
     try {
@@ -181,7 +217,10 @@ async function open(root, chapterId, resumeScroll = 0) {
 }
 // Run the watch loop independently of the opening request and report its errors.
 function launch(root, chapterId, scrollTop) {
-  void open(root, chapterId, scrollTop).catch(showError);
+  const generation = openingGeneration + 1;
+  void open(root, chapterId, scrollTop).catch((error) => {
+    if (generation === openingGeneration) showError(error);
+  });
 }
 document.addEventListener(
   "click",
@@ -266,7 +305,7 @@ addEventListener("message", (event) => {
 });
 async function initialize() {
   await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.3.0" },
+    appInfo: { name: "markdown-book", version: "0.4.1" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });
@@ -284,6 +323,14 @@ async function initialize() {
         resolve();
       };
     });
+  if (initial.choose) {
+    await showLibrary(initial.root);
+    return;
+  }
+  if (!initial.root && !saved.root) {
+    await showLibrary();
+    return;
+  }
   const sameBook = !initial.root || initial.root === saved.root;
   launch(
     initial.root ?? saved.root,

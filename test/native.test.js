@@ -22,10 +22,12 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
         "mcp",
       ],
       stderr: "pipe",
+      env: { ...process.env, MARKDOWN_BOOK_STATE: `${first.root}.recent.json` },
     }),
   );
   t.after(async () => {
     await client.close();
+    await rm(`${first.root}.recent.json`, { force: true });
     await Promise.all(
       [first, second].map((book) =>
         rm(book.root, { recursive: true, force: true }),
@@ -42,6 +44,9 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
     assert.deepEqual(tool._meta["openai/ui"].entrypoints, [{ type }]);
   }
   for (const name of [
+    "reader_library",
+    "choose_book_directory",
+    "forget_recent_book",
     "reader_view",
     "reader_page",
     "reader_updates",
@@ -108,9 +113,12 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
 
 test("native view watches source, retains a good build on error, recovers, and discovers bounded books", async (t) => {
   const book = await fixture();
-  const gateway = new ReaderGateway();
+  const gateway = new ReaderGateway({
+    stateFilePath: `${book.root}.recent.json`,
+  });
   t.after(async () => {
     await gateway.close();
+    await rm(`${book.root}.recent.json`, { force: true });
     await rm(book.root, { recursive: true, force: true });
   });
   const viewKey = "c".repeat(32);

@@ -16,22 +16,38 @@ test("packaged stdio tools check, open, reuse and close a real local reader", as
       "mcp",
     ],
     stderr: "pipe",
+    cwd: book.root,
+    env: { ...process.env, MARKDOWN_BOOK_STATE: `${book.root}.recent.json` },
   });
   t.after(async () => {
     await client.close();
+    await rm(`${book.root}.recent.json`, { force: true });
     await rm(book.root, { recursive: true, force: true });
   });
   await client.connect(transport);
   const tools = await client.listTools();
   assert.deepEqual(tools.tools.map(({ name }) => name).sort(), [
     "check_book",
+    "choose_book_directory",
     "close_reader_view",
+    "forget_recent_book",
     "open_reader",
     "open_workspace",
+    "reader_library",
     "reader_page",
     "reader_updates",
     "reader_view",
   ]);
+  const library = await client.callTool({
+    name: "reader_library",
+    arguments: {},
+  });
+  assert.equal(library.structuredContent.workspaceBooks.length, 1);
+  const sidebar = await client.callTool({
+    name: "open_workspace",
+    arguments: {},
+  });
+  assert.equal(sidebar._meta.reader.choose, true);
   const checked = await client.callTool({
     name: "check_book",
     arguments: { root: book.root },

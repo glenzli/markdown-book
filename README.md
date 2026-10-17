@@ -2,7 +2,7 @@
 
 普通 Markdown 书稿、可复用的浏览器互动组件，以及本地与网站共用的阅读器。
 
-当前为 0.3.0 开发版。包含格式 v1、`check / serve / build`、公式与资源转换、静态回退、源文件更新预览，以及 Codex 插件。尚未发布 npm 包，也未部署网站。
+当前为 0.4.1 开发版。包含格式 v1、`check / serve / build`、公式与资源转换、静态回退、源文件更新预览，以及 Codex 插件。尚未发布 npm 包，也未部署网站。
 
 ## 本地开发
 
@@ -17,7 +17,7 @@ node bin/markdown-book.js build /path/to/book --out /tmp/book-site --base /books
 
 参数可以是包含 book.json 的目录，也可以是清单路径。`serve` 输出本地地址，默认动态选择空闲端口。静态构建输出的内容挂载到 `--base` 指定的路径即可，不要求主站重新解析正文。除本地预览的文件更新通知外，阅读与互动均不需要服务器 API。
 
-本轮真实使用端位于相邻 Curio 仓库的 `books/photographic-imaging-science/book.json`，包含完整摄影教材的 25 个阅读页面、第四章噪声互动和第十六章 Three.js 对焦动画。书稿、图版与学科模型维护在 Curio，工具仓库不复制教材正文。
+本轮真实使用端位于相邻 Curio 仓库的 `books/photographic-imaging-science/book.json`，包含完整摄影教材的 25 个阅读页面、噪声、采样混叠、MTF、像场重对焦和 Three.js 对焦动画。书稿、图版与学科模型维护在 Curio，工具仓库不复制教材正文。
 
 ## 规范与源码
 
@@ -44,7 +44,7 @@ codex plugin add markdown-book@markdown-book-local --json
 
 在新聊天中可以说“预览这个项目的 Markdown 书籍”。支持 MCP Apps 的宿主直接打开阅读面板；插件不再要求把 localhost 网页当作原生侧栏。普通浏览器仍可通过 `serve` 或工具返回的备用 URL 阅读。`check_book` 提供格式与资源诊断。
 
-面板使用同一份构建产物和组件代码，图片、KaTeX 字体与互动模块经 MCP 传入，运行时无需连接 localhost 或 CDN。只读的 `reader_view / reader_page / reader_updates / close_reader_view` 管理视图和更新；它们仅向 App 暴露。构建缓存可由同一本书的多个面板共用，源文件监听随 MCP 进程关闭。
+面板使用同一份构建产物和组件代码，图片、KaTeX 字体与互动模块经 MCP 传入，运行时无需连接 localhost 或 CDN。`reader_view / reader_page / reader_updates / close_reader_view` 管理视图和更新；它们仅向 App 暴露，不修改书稿。最近阅读记录由本机用户数据目录保存。构建缓存可由同一本书的多个面板共用，源文件监听随 MCP 进程关闭。
 
 插件源位于 `plugins/markdown-book/`，仓库市场清单位于 `.agents/plugins/marketplace.json`。`plugin:bundle` 在忽略的 runtime 目录准备自包含本地运行时，安装前运行；源码检出也可以直接使用仓库内 CLI。插件更新后，已启动的会话可能仍使用旧工具列表；在新会话或重新加载插件后使用新入口。插件不包含写书、部署或执行书稿命令的工具。
 
@@ -71,3 +71,9 @@ npm run package:check
 修改清单 schema 后，运行 `node scripts/check-project.js --write-schema` 生成机器规范。测试覆盖真实输入边界、打包与输出、预览重建及 MCP 会话。组件的学科模型与行为测试由各书稿仓库承担。
 
 代码采用 MIT；使用端教材及素材各自遵循其许可。
+
+### 选择与继续阅读
+
+未提供宿主工作区时，使用 MCP 启动目录发现书籍；不会自动扫描主目录或文件系统根目录。从侧边栏打开后，优先显示最近阅读和当前工作区中的书籍，可按书名或位置筛选。最近记录包含最后打开的章节；点击即可继续，切换书籍后也可返回原阅读位置。选择文件夹使用 macOS、Windows 或 Linux 的系统目录选择器；路径输入位于折叠的备用入口。移出最近阅读仅移除本地记录。
+
+记录默认位于 `~/.markdown-book/recent-books.json`，可用 `MARKDOWN_BOOK_STATE` 指向其他本地状态文件。损坏或失效记录不会阻止打开新书，记录无法写入时仍可阅读。Linux 目录选择需要系统已安装 `zenity`；不可用时可使用工作区发现、最近记录或备用路径入口。

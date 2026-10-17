@@ -1,4 +1,5 @@
 import path from "node:path";
+import { ReaderLibrary } from "./reader-library.js";
 import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { build as bundle } from "esbuild";
 import { loadBook, projectFile } from "./manifest.js";
@@ -77,6 +78,29 @@ export class ReaderGateway {
   selections = new Map();
   closing = false;
 
+  constructor(options = {}) {
+    this.library = options.library ?? new ReaderLibrary(options);
+  }
+
+  async listBooks(workspaces = []) {
+    const workspaceBooks = new Map(),
+      warnings = [];
+    for (const workspace of [...new Set(workspaces)]) {
+      try {
+        for (const book of await discoverBooks(workspace))
+          workspaceBooks.set(book.root, book);
+      } catch (error) {
+        warnings.push(error.message);
+      }
+    }
+    return {
+      recentBooks: await this.library.list(),
+      workspaceBooks: [...workspaceBooks.values()],
+      workspaces,
+      ...(warnings.length ? { warning: warnings.join(" ") } : {}),
+    };
+  }
+
   async preview(root) {
     if (this.closing) throw new Error("MCP server is closing");
     const book = await loadBook(root);
@@ -125,8 +149,14 @@ export class ReaderGateway {
       !preview.result.chapters.some((chapter) => chapter.id === chapterId)
     )
       throw new Error(`Unknown chapter: ${chapterId}`);
+    const canonical = (await loadBook(root)).root;
+    await this.library.remember(
+      canonical,
+      preview.result.manifest.title,
+      chapterId,
+    );
     return {
-      root: (await loadBook(root)).root,
+      root: canonical,
       title: preview.result.manifest.title,
       chapters: preview.result.chapters,
       url: `${preview.url}${chapterId ? `${chapterId}/` : ""}`,
@@ -294,9 +324,17 @@ export class ReaderGateway {
         /<script id="mb-state" type="application\/json">([\s\S]*?)<\/script>/,
       )[1],
     );
+    const assets = await this.nativeAssets(state, pageState.components);
+    if (this.views.get(viewKey) !== view)
+      throw new Error("Book selection changed.");
+    await this.library.remember(
+      view.root,
+      state.preview.result.manifest.title,
+      chapterId ?? null,
+    );
     return {
       body,
-      ...(await this.nativeAssets(state, pageState.components)),
+      ...assets,
       title: state.preview.result.manifest.title,
       chapterId: chapterId ?? null,
       cursor: state.cursor,
@@ -338,6 +376,7 @@ export class ReaderGateway {
 
   async close() {
     this.closing = true;
+    await this.library.close();
     this.selections.clear();
     for (const key of [...this.views.keys()]) this.closeView(key);
     await Promise.allSettled([...this.opening.values()]);

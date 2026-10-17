@@ -8,9 +8,12 @@ import { fixture } from "./fixtures.js";
 
 test("a book uses the tool-owned Three.js without local dependencies; native pages only receive their own components", async (t) => {
   const book = await fixture();
-  const gateway = new ReaderGateway();
+  const gateway = new ReaderGateway({
+    stateFilePath: `${book.root}.recent.json`,
+  });
   t.after(async () => {
     await gateway.close();
+    await rm(`${book.root}.recent.json`, { force: true });
     await rm(book.root, { recursive: true, force: true });
   });
   await writeFile(
