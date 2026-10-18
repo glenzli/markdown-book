@@ -8,7 +8,7 @@
 
 普通 Markdown 书稿、浏览器互动组件，以及本地、Codex 和网站共用的阅读器。代码与配套文档采用 [MIT](LICENSE) 协议；书稿和素材的许可由各自作者决定。
 
-当前工具版本 **0.6.3**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。
+当前工具版本 **0.7.0**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。
 
 ### 安装 Codex 插件
 
@@ -37,6 +37,8 @@ codex plugin add markdown-book@glenzli-marketplace --json
 偏好保存在浏览器本地；存储受限的原生面板使用宿主视图状态。界面翻译覆盖选书、导航、查找、讨论及阅读设置，**不翻译书稿、章节标题或作者编写的互动组件**。诊断信息保留原始错误内容。
 
 章节目录和“本章内容”均可收起。`⌘K` / `Ctrl+K` 查找章节、正文和互动演示，点击结果定位到原位置。正文选区或当前小节可附上 Markdown、文件和行号，在单独的 Codex 对话中创建可编辑的讨论草稿；由用户发送。普通网页支持复制讨论内容。
+
+实验参数可跨切章、关闭和重启恢复；原生模式保存在本机独立状态文件，网页模式使用浏览器本地存储。参与此接口的演示提供“讨论这个实验”，讨论草稿可附上打开时的参数、读数和模型条件，并可取消勾选。[组件会话规范](docs/experiment-sessions.md)。
 
 最近阅读保存在 `~/.markdown-book/recent-books.json`，可用 `MARKDOWN_BOOK_STATE` 改用其他本机文件。移出最近阅读不删除书稿。系统目录选择器在 Linux 上需要 zenity；不可用时仍可使用工作区列表和路径入口。
 
@@ -91,7 +93,7 @@ npm run plugin:sync -- /absolute/path/to/marketplace
 
 Markdown manuscripts, browser interactives, and one reader for local previews, Codex panels, and static websites. The code and accompanying documentation are licensed under [MIT](LICENSE). Books and media retain their authors' own licenses.
 
-Tool version **0.6.3**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes.
+Tool version **0.7.0**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes.
 
 ### Install the Codex plugin
 
@@ -122,6 +124,8 @@ Preferences use browser storage, with host view state for native panels where st
 Collapse the chapter sidebar or the on-page outline. Press `⌘K` / `Ctrl+K` to search chapters, text, and interactive demos. Results jump to their source location. Reference selected text or the current section, including its Markdown, file, and line numbers, in a separate editable Codex discussion draft. The user sends the draft. Static websites can copy the same discussion context.
 
 Recent books live at `~/.markdown-book/recent-books.json`; override this with `MARKDOWN_BOOK_STATE`. Removing a recent entry never deletes a book. The Linux folder picker requires zenity; workspace discovery and path entry remain available without it.
+
+Experiment sessions restore parameters across navigation and restarts. Native panels use a separate local state file; websites use browser storage. Opted-in components offer **Discuss this experiment** with a frozen, reviewable parameter/readout snapshot. [Session contract](docs/experiment-sessions.md).
 
 ### Author a book
 

@@ -231,6 +231,30 @@ export function createBookMcp(options = {}) {
     ),
   );
   server.registerTool(
+    "save_reader_experiments",
+    {
+      title: "Save local experiment state",
+      description:
+        "Save finite JSON parameters for this view's book; never modify manuscript files.",
+      inputSchema: {
+        viewKey,
+        root: z.string(),
+        bookId: z.string(),
+        values: z.record(z.string(), z.unknown()),
+      },
+      annotations: { ...annotations, readOnlyHint: false },
+      _meta: appOnly,
+    },
+    attempt((input) =>
+      gateway.saveExperiments(
+        input.viewKey,
+        input.root,
+        input.values,
+        input.bookId,
+      ),
+    ),
+  );
+  server.registerTool(
     "reader_index",
     {
       title: "Read the book search index",

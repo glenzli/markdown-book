@@ -72,6 +72,13 @@ export function mount({ element, props, signal }) {
 
 浏览器组件在本地 Reader 和静态网页运行相同代码。v1 不提供本地命令执行、文件写入、Python kernel、网络代理或组件间共享状态协议。
 
+## 可选实验会话
+
+`mount` 还可接收可选的 `session`，旧组件无需修改。详见 [实验会话](experiment-sessions.md)。
+`session.load()` 读取当前书籍、章节、组件及同名出现序号对应的 JSON；`session.save(value)`
+保存参数；`session.describe(() => snapshot)` 提供讨论时的参数与读数。状态不是清单 props，
+不写回书稿；组件负责验证版本、范围和单位，播放恢复后保持暂停。
+
 ## 输出与本地预览
 
 `build --base /books/imaging/` 生成书目首页、每章 index.html、带内容指纹的 JS/CSS/字体、本地资源、catalog.json、search.json、原生面板组件映射 reader-map.json 与 build.json。输出目录内容挂载到指定 base。默认输出为书籍目录的 dist；仅覆盖此前由本工具为同一 book id 生成的输出，拒绝覆盖书籍根或未知目录。

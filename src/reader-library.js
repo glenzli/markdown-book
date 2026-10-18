@@ -11,6 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { loadBook } from "./manifest.js";
+import { experimentValue } from "../reader/experiment-data.js";
 
 const limit = 12;
 
@@ -192,6 +193,54 @@ export class ReaderLibrary {
     }
   }
 
+  async experiments(root, bookId) {
+    const store = (this.experimentStore ??= new ReaderLibrary({
+      stateFilePath: this.filename + ".experiments",
+    }));
+    await store.queue;
+    const value = (await store.stored()).find(
+      (book) =>
+        book.root === root && (bookId === undefined || book.bookId === bookId),
+    )?.experiments;
+    try {
+      return experimentValue(value ?? { version: 1, values: {} }, 131072);
+    } catch {
+      return { version: 1, values: {} };
+    }
+  }
+
+  async saveExperiments(root, changes, bookId) {
+    const copy = experimentValue(changes, 131000);
+    const store = (this.experimentStore ??= new ReaderLibrary({
+      stateFilePath: this.filename + ".experiments",
+    }));
+    await store.update((books) =>
+      [
+        books.find((book) => book.root === root) ?? {
+          root,
+          openedAt: new Date().toISOString(),
+        },
+        ...books.filter((book) => book.root !== root),
+      ].map((book) => {
+        if (book.root !== root) return book;
+        const values =
+          book.bookId === bookId ? { ...book.experiments?.values } : {};
+        for (const [key, value] of Object.entries(copy)) {
+          delete values[key];
+          values[key] = value;
+        }
+        const keys = Object.keys(values);
+        while (keys.length > 128 || JSON.stringify(values).length * 2 > 131000)
+          delete values[keys.shift()];
+        return {
+          ...book,
+          ...(bookId ? { bookId } : {}),
+          experiments: { version: 1, values },
+        };
+      }),
+    );
+  }
+
   async forget(root) {
     await this.update((books) => books.filter((book) => book.root !== root));
   }
@@ -210,5 +259,6 @@ export class ReaderLibrary {
   async close() {
     this.picker?.abort();
     await this.queue;
+    await this.experimentStore?.close();
   }
 }

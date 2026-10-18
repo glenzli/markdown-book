@@ -722,3 +722,17 @@ html[data-reader-ready] .reader-action {
     flex-direction: column;
   }
 }
+
+.component-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.component-tools {
+  justify-content: flex-end;
+  padding: 0 18px 15px;
+}
+.component-tools .component-toggle {
+  margin: 0;
+}

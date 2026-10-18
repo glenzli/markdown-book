@@ -101,3 +101,10 @@ The same component runs in local previews, native panels, and static builds. For
 The standard MCP App resource is `ui://markdown-book/reader.html`. Hosts present the `open_workspace` global sidebar entry and `open_reader` thread entry; the book format itself has no Codex dependency. The native gateway reuses generated pages, fonts, media, and component modules, keeps each panel independent, and transfers content through app-only MCP tools without loopback HTTP.
 
 Books need no Codex-specific files. The plugin discovers declared books, reads and builds them, and supports live source updates. UI language and theme can be automatic or manually selected; book language, component labels, and manuscript text remain unchanged. Authoring skills use normal authorized file edits, while preview MCP tools remain read-only.
+
+## Optional experiment sessions
+
+Components may accept an optional `session` with `load()`, `save(value)` and `describe(capture)`.
+Existing mount functions remain valid; formatVersion stays 1. Sessions isolate book, chapter,
+component ID and occurrence. The component validates version/ranges and restores playback paused.
+See [Experiment sessions](experiment-sessions.md) for limits, native persistence and reviewed AI drafts.

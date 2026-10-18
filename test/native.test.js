@@ -28,6 +28,7 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
   t.after(async () => {
     await client.close();
     await rm(`${first.root}.recent.json`, { force: true });
+    await rm(`${first.root}.recent.json.experiments`, { force: true });
     await Promise.all(
       [first, second].map((book) =>
         rm(book.root, { recursive: true, force: true }),
@@ -45,6 +46,7 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
   }
   for (const name of [
     "reader_index",
+    "save_reader_experiments",
     "reader_library",
     "choose_book_directory",
     "forget_recent_book",
@@ -72,7 +74,7 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
   };
   const a = "a".repeat(32),
     b = "b".repeat(32);
-  await call("reader_view", { viewKey: a, root: first.root });
+  const openedA = await call("reader_view", { viewKey: a, root: first.root });
   await call("reader_view", { viewKey: b, root: second.root });
   const page = await call("reader_page", { viewKey: a, chapterId: "first" });
   assert.match(page.body, /data:image\/svg\+xml;base64,/);
@@ -82,6 +84,63 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
     page.body.split('<script id="mb-state"')[0],
     /alert\(1\)|onerror=/,
   );
+  const stateKey = JSON.stringify(["first", "sample", 0]);
+  await call("save_reader_experiments", {
+    viewKey: a,
+    root: openedA.root,
+    bookId: first.manifest.id,
+    values: {
+      [stateKey]: { version: 1, parameters: { gain: 3 }, progress: 40 },
+    },
+  });
+  const persisted = await call("reader_page", {
+    viewKey: a,
+    chapterId: "first",
+  });
+  assert.equal(persisted.experiments.values[stateKey].progress, 40);
+  assert.deepEqual(
+    (await call("reader_page", { viewKey: b, chapterId: "first" })).experiments
+      .values,
+    {},
+  );
+  assert.equal(
+    (
+      await client.callTool({
+        name: "save_reader_experiments",
+        arguments: {
+          viewKey: a,
+          root: second.root,
+          bookId: second.manifest.id,
+          values: { [stateKey]: { version: 9 } },
+        },
+      })
+    ).isError,
+    true,
+  );
+  assert.equal(
+    (
+      await client.callTool({
+        name: "save_reader_experiments",
+        arguments: {
+          viewKey: a,
+          root: openedA.root,
+          bookId: first.manifest.id,
+          values: { [stateKey]: { s: "x".repeat(5000) } },
+        },
+      })
+    ).isError,
+    true,
+  );
+  const reopened = new ReaderGateway({
+    stateFilePath: `${first.root}.recent.json`,
+  });
+  await reopened.view("z".repeat(32), first.root);
+  assert.equal(
+    (await reopened.page("z".repeat(32), "first")).experiments.values[stateKey]
+      .parameters.gain,
+    3,
+  );
+  await reopened.close();
   const indexA = await call("reader_index", { viewKey: a });
   assert.equal(
     indexA.entries.filter((entry) => entry.kind === "interactive").length,

@@ -7,6 +7,7 @@ import { translateDom } from "./i18n.js";
 import { startNavigation } from "./navigation.js";
 import { startSearch } from "./search.js";
 import { startReferences } from "./references.js";
+import { createExperiments } from "./experiments.js";
 
 const storage = browserStorage();
 
@@ -27,7 +28,41 @@ export function startReader(registry, host) {
   document.documentElement.dataset.readerReady = "true";
   startNavigation({ signal: controller.signal, storage, host, preferences });
   startSearch({ state, signal: controller.signal, host, preferences });
-  startReferences({ state, signal: controller.signal, host, preferences });
+  const experimentKey = [
+    "markdown-book:experiments",
+    state.base,
+    state.bookId,
+  ].join(":");
+  const experiments = createExperiments({
+    chapterId: state.chapterId,
+    signal: controller.signal,
+    read: () =>
+      host?.getExperiments
+        ? host.getExperiments()
+        : JSON.parse(storage.get("localStorage", experimentKey) ?? "null"),
+    write: (value, changes) =>
+      host?.setExperiments
+        ? host.setExperiments(value, changes)
+        : storage.set("localStorage", experimentKey, JSON.stringify(value)),
+  });
+  document.addEventListener("mb:save-experiments", experiments.flush, {
+    signal: controller.signal,
+  });
+  const references = startReferences({
+    state,
+    signal: controller.signal,
+    host,
+    preferences,
+    experiments,
+  });
+  const occurrences = new Map();
+  const componentInstances = new WeakMap();
+  for (const container of document.querySelectorAll("[data-mb-component]")) {
+    const name = container.dataset.mbComponent;
+    const occurrence = occurrences.get(name) ?? 0;
+    occurrences.set(name, occurrence + 1);
+    componentInstances.set(container, occurrence);
+  }
 
   async function mount(container) {
     const name = container.dataset.mbComponent;
@@ -54,6 +89,11 @@ export function startReader(registry, host) {
         element,
         props: structuredClone(registry[name].props),
         signal: abort.signal,
+        session: experiments.session(
+          name,
+          componentInstances.get(container),
+          container,
+        ),
       });
       if (cleanup !== undefined && typeof cleanup !== "function")
         throw new Error(t("invalidCleanup"));
@@ -92,7 +132,29 @@ export function startReader(registry, host) {
         },
         { signal: controller.signal },
       );
-      container.append(toggle);
+      const tools = document.createElement("div");
+      tools.className = "component-tools";
+      tools.append(toggle);
+      if (state.chapter && experiments.snapshots(container).length) {
+        const discuss = document.createElement("button");
+        discuss.className = "component-toggle";
+        discuss.type = "button";
+        discuss.dataset.mbLabel = "discussExperiment";
+        discuss.textContent = t("discussExperiment");
+        discuss.addEventListener(
+          "click",
+          () => references.openExperiment(container),
+          { signal: controller.signal },
+        );
+        preferences.subscribe(
+          () => {
+            discuss.textContent = t("discussExperiment");
+          },
+          { signal: controller.signal },
+        );
+        tools.append(discuss);
+      }
+      container.append(tools);
     } catch (error) {
       abort.abort();
       element.remove();

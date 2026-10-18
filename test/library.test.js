@@ -106,3 +106,31 @@ test("closing the library cancels its pending directory chooser", async () => {
   await library.close();
   await rejected;
 });
+
+test("experiment state survives legacy recent-file rewrites, merges writers, and retains the most recently saved books", async (t) => {
+  const folder = await mkdtemp(path.join(tmpdir(), "mb-state-test-")),
+    filename = path.join(folder, "recent.json");
+  const a = new ReaderLibrary({ stateFilePath: filename }),
+    b = new ReaderLibrary({ stateFilePath: filename });
+  t.after(async () => {
+    await a.close();
+    await b.close();
+    await rm(folder, { recursive: true, force: true });
+  });
+  const key = JSON.stringify(["chapter", "demo", 0]);
+  await Promise.all([
+    a.saveExperiments("/book", { [key]: { seed: 1 } }),
+    b.saveExperiments("/book", { other: { seed: 2 } }),
+  ]);
+  assert.equal((await a.experiments("/book")).values.other.seed, 2);
+  await writeFile(filename, JSON.stringify({ version: 1, books: [] }));
+  assert.equal(
+    (await new ReaderLibrary({ stateFilePath: filename }).experiments("/book"))
+      .values[key].seed,
+    1,
+  );
+  for (let i = 0; i < 13; i++)
+    await a.saveExperiments("/book" + i, { [key]: { seed: i } });
+  assert.equal((await a.experiments("/book12")).values[key].seed, 12);
+  assert.deepEqual((await a.experiments("/book0")).values, {});
+});

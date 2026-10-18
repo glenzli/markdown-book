@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { ReaderLibrary } from "./reader-library.js";
+import { experimentValue } from "../reader/experiment-data.js";
 import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { build as bundle } from "./bundler.js";
 import { loadBook, projectFile } from "./manifest.js";
@@ -160,6 +161,7 @@ export class ReaderGateway {
     );
     return {
       root: canonical,
+      bookId: preview.result.manifest.id,
       title: preview.result.manifest.title,
       chapters: preview.result.chapters,
       url: `${preview.url}${chapterId ? `${chapterId}/` : ""}`,
@@ -345,6 +347,11 @@ export class ReaderGateway {
     );
     return {
       body,
+      bookId: state.preview.result.manifest.id,
+      experiments: await this.library.experiments(
+        view.root,
+        state.preview.result.manifest.id,
+      ),
       stylesheetId: assets.stylesheetId,
       javascriptId: assets.javascriptId,
       ...(knownAssets.stylesheetId === assets.stylesheetId
@@ -359,6 +366,39 @@ export class ReaderGateway {
       digest: state.preview.result.digest,
       error: state.error,
     };
+  }
+
+  async saveExperiments(viewKey, root, values, bookId) {
+    const view = this.requireView(viewKey);
+    if (view.root !== root || bookId !== view.state.preview.result.manifest.id)
+      throw new Error("Book selection changed.");
+    experimentValue(values, 131000);
+    for (const [key, value] of Object.entries(values)) {
+      experimentValue(value);
+      const identity = JSON.parse(key);
+      if (
+        !Array.isArray(identity) ||
+        identity.length !== 3 ||
+        JSON.stringify(identity) !== key
+      )
+        throw new Error("Invalid experiment identity.");
+      const [chapter, component, occurrence] = identity;
+      if (
+        !view.state.preview.result.chapters.some(
+          (item) => item.id === chapter,
+        ) ||
+        !Object.hasOwn(
+          view.state.preview.result.manifest.components,
+          component,
+        ) ||
+        !Number.isSafeInteger(occurrence) ||
+        occurrence < 0 ||
+        occurrence > 127
+      )
+        throw new Error("Invalid experiment identity.");
+    }
+    await this.library.saveExperiments(root, values, bookId);
+    return { saved: true };
   }
 
   async index(viewKey) {

@@ -41,6 +41,8 @@ let book,
   initializedPanel = false;
 // Cache source text, not mounted components: every chapter still gets its own lifecycle.
 const pageScripts = new Map();
+let experimentWrites = Promise.resolve(),
+  experimentRevision = 0;
 const scriptBudget = 8 * 1024 * 1024;
 let scriptBytes = 0;
 function rememberScript(id, source) {
@@ -77,7 +79,7 @@ function request(method, params = {}, allowStopped = false) {
           ? 60000
           : 25000,
     );
-    pending.set(id, { resolve, reject, timer });
+    pending.set(id, { resolve, reject, timer, allowStopped });
     try {
       send({ id, method, params });
     } catch (error) {
@@ -180,6 +182,7 @@ async function showLibrary(root = libraryRoot) {
   ++pageGeneration;
   book = null;
   disposePage();
+  await experimentWrites;
   await call("close_reader_view", { viewKey });
   const data = await call("reader_library", { ...(root ? { root } : {}) });
   if (stopped || generation !== openingGeneration) return;
@@ -213,6 +216,10 @@ async function showLibrary(root = libraryRoot) {
 }
 async function page(chapterId = null, anchor = "", scrollTop = 0) {
   const generation = ++pageGeneration;
+  document.dispatchEvent(new Event("mb:save-experiments"));
+  await experimentWrites;
+  if (stopped || generation !== pageGeneration) return;
+  const savedRevision = experimentRevision;
   const styleId = document.getElementById("mb-book-style")?.dataset.assetId;
   const args = {
     viewKey,
@@ -263,6 +270,14 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   switcher.addEventListener("click", () => void showLibrary().catch(showError));
   document.querySelector(".topbar").append(switcher);
   const pageBook = book;
+  if (result.experiments && experimentRevision === savedRevision)
+    saved = {
+      ...saved,
+      experiments: {
+        ...saved.experiments,
+        [pageBook.root]: result.experiments,
+      },
+    };
   const current = () => {
     if (stopped || generation !== pageGeneration || book !== pageBook)
       throw new Error(t("positionChanged"));
@@ -275,6 +290,36 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
       if (stopped) return;
       saved = { ...saved, readerLayout };
       persist();
+    },
+    getExperiments: () => saved.experiments?.[pageBook.root],
+    setExperiments: (value, changes = value.values) => {
+      experimentRevision++;
+      const experiments = { ...saved.experiments };
+      delete experiments[pageBook.root];
+      experiments[pageBook.root] = value;
+      while (Object.keys(experiments).length > 8)
+        delete experiments[Object.keys(experiments)[0]];
+      saved = { ...saved, experiments };
+      window.openai?.setWidgetState?.(saved);
+      experimentWrites = experimentWrites
+        .then(() =>
+          call(
+            "save_reader_experiments",
+            {
+              viewKey,
+              root: pageBook.root,
+              bookId: result.bookId,
+              values: changes,
+            },
+            true,
+          ),
+        )
+        .catch((error) => {
+          if (!stopped)
+            showError(
+              new Error(t("experimentSaveFailed", { error: error.message })),
+            );
+        });
     },
     loadIndex: async () => {
       current();
@@ -318,6 +363,8 @@ async function open(root, chapterId, resumeScroll = 0) {
   ++pollGeneration;
   wakeWatch?.();
   ++pageGeneration;
+  disposePage();
+  await experimentWrites;
   const result = await call("reader_view", {
     viewKey,
     ...(root ? { root } : {}),
@@ -469,12 +516,14 @@ addEventListener("message", (event) => {
     disposePage();
     pageScripts.clear();
     scriptBytes = 0;
-    for (const work of pending.values()) {
+    for (const [id, work] of pending) {
+      if (work.allowStopped) continue;
+      pending.delete(id);
       clearTimeout(work.timer);
       work.reject(new Error(t("panelClosed")));
     }
-    pending.clear();
-    void call("close_reader_view", { viewKey }, true)
+    void experimentWrites
+      .then(() => call("close_reader_view", { viewKey }, true))
       .catch(() => {})
       .finally(() => {
         if (message.id !== undefined) send({ id: message.id, result: {} });
@@ -491,7 +540,7 @@ addEventListener("message", (event) => {
 });
 async function initialize() {
   const initialized = await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.6.3" },
+    appInfo: { name: "markdown-book", version: "0.7.0" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });

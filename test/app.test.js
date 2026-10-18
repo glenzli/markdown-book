@@ -86,6 +86,7 @@ async function app({ origin = "https://host.example", handle } = {}) {
     });
   const page = (id) => ({
     body: `<article>${id ?? "home"}</article>`,
+    bookId: "book-id",
     stylesheet: "",
     javascript: "",
     title: id ?? "home",
@@ -178,6 +179,9 @@ async function app({ origin = "https://host.example", handle } = {}) {
     timers,
     blobs,
     events,
+    get host() {
+      return context.__markdownBookHost;
+    },
     get scriptIds() {
       return vm.runInContext("[...pageScripts.keys()]", context);
     },
@@ -213,6 +217,7 @@ test("native opening coalesces repeated book clicks, reports loading and does no
     },
   });
   const first = a.api.launch("/book", "first");
+  await flush();
   assert.equal(a.button.disabled, true);
   assert.equal(a.ids.get("mb-opening-status").textContent, "openingBook");
   assert.equal(a.api.launch("/book", "first"), first);
@@ -246,6 +251,7 @@ test("native timeout offers retry and rejects late opening responses; retry can 
     },
   });
   const opening = a.api.launch("/book", "first");
+  await flush();
   a.timeout(60000);
   await opening;
   assert.equal(
@@ -332,8 +338,10 @@ test("native page requests recreate a lost MCP view and ignore a late superseded
     a.messages.filter((m) => m.params?.name === "reader_view").length,
     2,
   );
-  const slow = a.api.page("slow"),
-    fast = a.api.page("fast");
+  const slow = a.api.page("slow");
+  await flush();
+  const fast = a.api.page("fast");
+  await flush();
   delayed[1]();
   await fast;
   delayed[0]();
@@ -386,7 +394,7 @@ test("native chapter navigation reuses styles and source bytes but remounts each
   );
   assert.equal(a.blobs.length, 3);
   assert.match(await a.blobs[2].text(), new RegExp(`source ${firstId}`));
-  assert.equal(a.events.filter((x) => x === "mb:dispose").length, 4); // initial library plus three mounts
+  assert.equal(a.events.filter((x) => x === "mb:dispose").length, 5); // library, explicit open and three mounts
   await a.api.showLibrary();
   await a.api.launch("/book", "first");
   assert.equal(a.ids.get("mb-book-style").textWrites, 1);
@@ -436,10 +444,39 @@ test("native superseded failures cannot replace the current chapter with an erro
   });
   await a.api.launch("/book", "first");
   const old = a.api.page("slow");
+  await flush();
   await a.api.page("second");
   fail();
   await old;
   assert.equal(a.document.title, "second");
   assert.equal(a.document.querySelector('[role="alert"]'), undefined);
+  await a.close();
+});
+
+test("native navigation and book switches drain durable experiment writes before rebinding the view", async () => {
+  let finish;
+  const a = await app({
+    handle(m, emit) {
+      if (m.params.name === "save_reader_experiments") {
+        finish = () =>
+          emit({ id: m.id, result: { structuredContent: { saved: true } } });
+        return false;
+      }
+    },
+  });
+  await a.api.launch("/first", "one");
+  const before = a.messages.filter(
+    (m) => m.params?.name === "reader_view",
+  ).length;
+  a.host.setExperiments({ version: 1, values: { key: { value: 5 } } });
+  const opening = a.api.launch("/second", "two");
+  await flush();
+  assert.equal(
+    a.messages.filter((m) => m.params?.name === "reader_view").length,
+    before,
+  );
+  finish();
+  await opening;
+  assert.equal(a.document.title, "two");
   await a.close();
 });

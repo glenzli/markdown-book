@@ -1,7 +1,13 @@
 import { translateDom } from "./i18n.js";
-import { referenceContent } from "./reference-data.js";
+import { referenceContent, experimentSummary } from "./reference-data.js";
 
-export function startReferences({ state, signal, host, preferences }) {
+export function startReferences({
+  state,
+  signal,
+  host,
+  preferences,
+  experiments,
+}) {
   const t = (key, values) => preferences.t(key, values);
   const trigger = document.querySelector(".discussion-toggle");
   if (!state.chapter) {
@@ -27,7 +33,18 @@ export function startReferences({ state, signal, host, preferences }) {
   const submit = dialog.querySelector(".reference-submit");
   const native = Boolean(host?.draftDiscussion);
   submit.dataset.mbLabel = native ? "newDiscussion" : "copyDiscussion";
-  let selection, context;
+  let selection,
+    context,
+    capturedExperiments = [];
+  const experimentPreview = document.createElement("pre");
+  experimentPreview.className = "reference-preview";
+  const include = document.createElement("input");
+  include.type = "checkbox";
+  const includeLabel = document.createElement("label");
+  const includeText = document.createElement("span");
+  includeText.dataset.mbLabel = "includeExperiment";
+  includeLabel.append(include, includeText);
+  preview.after(includeLabel, experimentPreview);
   function showStatus(key) {
     status.dataset.mbLabel = key;
     status.textContent = t(key);
@@ -68,15 +85,16 @@ export function startReferences({ state, signal, host, preferences }) {
     quote.style.left = `${Math.max(12, Math.min(window.innerWidth - 150, rect.left))}px`;
     quote.style.top = `${Math.max(12, Math.min(window.innerHeight - 48, rect.bottom + 8))}px`;
   }
-  function currentSection() {
+  function currentSection(atLine) {
     const headings = [...prose.querySelectorAll("h1,h2,h3,h4,h5,h6")].filter(
       (node) => node.dataset.mbLineStart,
     );
     const current =
       headings
-        .filter(
-          (node) =>
-            node.getBoundingClientRect().top <= window.innerHeight * 0.35,
+        .filter((node) =>
+          Number.isFinite(atLine)
+            ? Number(node.dataset.mbLineStart) <= atLine
+            : node.getBoundingClientRect().top <= window.innerHeight * 0.35,
         )
         .at(-1) ?? headings[0];
     const lines = state.chapter.source.split("\n");
@@ -97,8 +115,20 @@ export function startReferences({ state, signal, host, preferences }) {
       excerpt: selectedEnd < end,
     };
   }
-  function open() {
-    context = selection ?? currentSection();
+  function open(container) {
+    const line = container?.closest("[data-mb-line-start]");
+    context = container
+      ? currentSection(Number(line?.dataset.mbLineStart))
+      : (selection ?? currentSection());
+    capturedExperiments = experiments?.snapshots(container) ?? [];
+    include.checked = true;
+    includeLabel.hidden = experimentPreview.hidden =
+      !capturedExperiments.length;
+    includeText.textContent = t("includeExperiment");
+    experimentPreview.textContent = experimentSummary(
+      capturedExperiments,
+      preferences.locale,
+    );
     quote.hidden = true;
     showStatus(native ? "draftHint" : "copyHint");
     try {
@@ -122,11 +152,11 @@ export function startReferences({ state, signal, host, preferences }) {
     dialog.showModal();
     question.focus();
   }
-  trigger.addEventListener("click", open, { signal });
+  trigger.addEventListener("click", () => open(), { signal });
   quote.addEventListener("pointerdown", (event) => event.preventDefault(), {
     signal,
   });
-  quote.addEventListener("click", open, { signal });
+  quote.addEventListener("click", () => open(), { signal });
   document.addEventListener("pointerup", capture, { signal });
   document.addEventListener(
     "keyup",
@@ -157,6 +187,7 @@ export function startReferences({ state, signal, host, preferences }) {
           question.value,
           host?.root,
           preferences.locale,
+          include.checked ? capturedExperiments : [],
         );
         if (native) {
           await host.draftDiscussion(reference.content);
@@ -181,6 +212,13 @@ export function startReferences({ state, signal, host, preferences }) {
     },
     { signal },
   );
+  include.addEventListener(
+    "change",
+    () => {
+      experimentPreview.hidden = !include.checked;
+    },
+    { signal },
+  );
   signal.addEventListener(
     "abort",
     () => {
@@ -189,4 +227,5 @@ export function startReferences({ state, signal, host, preferences }) {
     },
     { once: true },
   );
+  return { openExperiment: (container) => open(container) };
 }

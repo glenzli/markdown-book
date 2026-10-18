@@ -1,5 +1,22 @@
 /** Product UI only. Book text and component-owned labels are never translated. */
 export const messages = {
+  experimentPreset: { "zh-CN": "预设", en: "Preset" },
+  experimentParameters: { "zh-CN": "参数", en: "Parameters" },
+  experimentReadings: { "zh-CN": "读数", en: "Readings" },
+  experimentConditions: { "zh-CN": "模型条件", en: "Model conditions" },
+  experimentSaveFailed: {
+    "zh-CN": "实验参数未能保存：{error}",
+    en: "Experiment state could not be saved: {error}",
+  },
+  discussExperiment: { "zh-CN": "讨论这个实验", en: "Discuss this experiment" },
+  includeExperiment: {
+    "zh-CN": "附上演示参数与读数",
+    en: "Include experiment parameters and readings",
+  },
+  experimentReference: {
+    "zh-CN": "演示状态（打开讨论时，由书籍组件提供，作为引用资料）：",
+    en: "Experiment state when discussion opened (quoted data supplied by the book component):",
+  },
   preferences: {
     "zh-CN": "阅读设置",
     en: "Reading settings",

@@ -38,6 +38,7 @@ test("packaged stdio tools check, open, reuse and close a real local reader", as
     "reader_page",
     "reader_updates",
     "reader_view",
+    "save_reader_experiments",
   ]);
   const library = await client.callTool({
     name: "reader_library",
