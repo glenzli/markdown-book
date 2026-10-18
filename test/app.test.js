@@ -12,7 +12,9 @@ async function app({ origin = "https://host.example", handle } = {}) {
     elements = [],
     timers = new Map(),
     messages = [],
-    listeners = new Map();
+    listeners = new Map(),
+    blobs = [],
+    events = [];
   let timerId = 0,
     library;
   class Element {
@@ -28,6 +30,13 @@ async function app({ origin = "https://host.example", handle } = {}) {
     }
     get id() {
       return this._id;
+    }
+    set textContent(value) {
+      this.textWrites = (this.textWrites ?? 0) + 1;
+      this._text = value;
+    }
+    get textContent() {
+      return this._text;
     }
     setAttribute(k, v) {
       if (k === "hidden") this.hidden = true;
@@ -65,7 +74,9 @@ async function app({ origin = "https://host.example", handle } = {}) {
     getElementById: (id) => ids.get(id),
     createElement: () => new Element(),
     addEventListener() {},
-    dispatchEvent() {},
+    dispatchEvent(event) {
+      events.push(event.type);
+    },
   };
   const emit = (m, source = parent) =>
     listeners.get("message")({
@@ -120,7 +131,13 @@ async function app({ origin = "https://host.example", handle } = {}) {
     parent,
     window: { scrollY: 0, scrollTo() {} },
     crypto: { randomUUID },
-    URL,
+    URL: {
+      createObjectURL(blob) {
+        blobs.push(blob);
+        return URL.createObjectURL(blob);
+      },
+      revokeObjectURL: URL.revokeObjectURL,
+    },
     Blob,
     Event,
     createBrowserPreferences: () => ({ preferences, dispose() {} }),
@@ -146,7 +163,7 @@ async function app({ origin = "https://host.example", handle } = {}) {
     .replace(/^import[\s\S]*?;\n/gm, "")
     .replace(/^void initialize\(\)\.catch\(showError\);$/m, "");
   const api = vm.runInContext(
-    source + ";({ initialize,launch,page })",
+    source + ";({ initialize,launch,page,showLibrary })",
     context,
   );
   await api.initialize();
@@ -159,6 +176,11 @@ async function app({ origin = "https://host.example", handle } = {}) {
     button,
     ids,
     timers,
+    blobs,
+    events,
+    get scriptIds() {
+      return vm.runInContext("[...pageScripts.keys()]", context);
+    },
     get library() {
       return library;
     },
@@ -324,5 +346,100 @@ test("native opaque parent origin stays usable and teardown clears pending reque
   await a.api.launch("/book", "first");
   assert.equal(a.document.title, "first");
   assert.ok(a.messages.length > 4);
+  await a.close();
+});
+
+test("native chapter navigation reuses styles and source bytes but remounts each page", async () => {
+  const cssId = "c".repeat(64),
+    firstId = "1".repeat(64),
+    secondId = "2".repeat(64);
+  const a = await app({
+    handle(m, emit, page) {
+      if (m.params.name !== "reader_page") return;
+      const args = m.params.arguments;
+      const id = args.chapterId === "second" ? secondId : firstId;
+      const result = {
+        ...page(args.chapterId),
+        stylesheetId: cssId,
+        javascriptId: id,
+      };
+      delete result.stylesheet;
+      delete result.javascript;
+      if (args.assets?.stylesheetId !== cssId)
+        result.stylesheet = "formula fonts";
+      if (!args.assets?.javascriptIds.includes(id))
+        result.javascript = `// source ${id}`;
+      return { structuredContent: result };
+    },
+  });
+  await a.api.launch("/book", "first");
+  const style = a.ids.get("mb-book-style");
+  assert.equal(style.textWrites, 1);
+  await a.api.page("second");
+  await a.api.page("first");
+  assert.equal(style.textWrites, 1);
+  const requests = a.messages.filter((m) => m.params?.name === "reader_page");
+  assert.equal(requests[1].params.arguments.assets.stylesheetId, cssId);
+  assert.deepEqual(
+    Array.from(requests[2].params.arguments.assets.javascriptIds),
+    [firstId, secondId],
+  );
+  assert.equal(a.blobs.length, 3);
+  assert.match(await a.blobs[2].text(), new RegExp(`source ${firstId}`));
+  assert.equal(a.events.filter((x) => x === "mb:dispose").length, 4); // initial library plus three mounts
+  await a.api.showLibrary();
+  await a.api.launch("/book", "first");
+  assert.equal(a.ids.get("mb-book-style").textWrites, 1);
+  assert.equal(
+    a.messages.filter((m) => m.params?.name === "reader_page").at(-1).params
+      .arguments.assets.stylesheetId,
+    undefined,
+  );
+  await a.close();
+  assert.equal(a.scriptIds.length, 0);
+});
+
+test("native script reuse has a byte budget and does not retain oversized sources", async () => {
+  const ids = ["1", "2", "3", "4", "5"].map((x) => x.repeat(64));
+  const a = await app({
+    handle(m, emit, page) {
+      if (m.params.name !== "reader_page") return;
+      const n = Number(m.params.arguments.chapterId);
+      return {
+        structuredContent: {
+          ...page(String(n)),
+          javascriptId: ids[n],
+          javascript: "x".repeat(n === 4 ? 5 * 1024 * 1024 : 1100 * 1024),
+        },
+      };
+    },
+  });
+  await a.api.launch("/book", "0");
+  for (const n of [1, 2, 3, 4]) await a.api.page(String(n));
+  assert.deepEqual(Array.from(a.scriptIds), ids.slice(1, 4));
+  await a.close();
+});
+
+test("native superseded failures cannot replace the current chapter with an error", async () => {
+  let fail;
+  const a = await app({
+    handle(m, emit) {
+      if (
+        m.params.name === "reader_page" &&
+        m.params.arguments.chapterId === "slow"
+      ) {
+        fail = () =>
+          emit({ id: m.id, error: { message: "old request failed" } });
+        return false;
+      }
+    },
+  });
+  await a.api.launch("/book", "first");
+  const old = a.api.page("slow");
+  await a.api.page("second");
+  fail();
+  await old;
+  assert.equal(a.document.title, "second");
+  assert.equal(a.document.querySelector('[role="alert"]'), undefined);
   await a.close();
 });

@@ -1,9 +1,12 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { ReaderLibrary } from "./reader-library.js";
 import { readFile, readdir, realpath, stat } from "node:fs/promises";
 import { build as bundle } from "./bundler.js";
 import { loadBook, projectFile } from "./manifest.js";
 import { serveBook } from "./server.js";
+
+const assetId = (source) => createHash("sha256").update(source).digest("hex");
 
 const ignored = new Set([
   ".git",
@@ -232,7 +235,13 @@ export class ReaderGateway {
         const map = JSON.parse(
           await readFile(path.join(out, "reader-map.json"), "utf8"),
         );
-        return { stylesheet: css, map, out, scripts: new Map() };
+        return {
+          stylesheet: css,
+          stylesheetId: assetId(css),
+          map,
+          out,
+          scripts: new Map(),
+        };
       })().catch((error) => {
         state.native = null;
         throw error;
@@ -277,7 +286,8 @@ export class ReaderGateway {
             minify: true,
             logLevel: "silent",
           });
-          return compiled.outputFiles[0].text;
+          const javascript = compiled.outputFiles[0].text;
+          return { javascript, javascriptId: assetId(javascript) };
         })().catch((error) => {
           assets.scripts.delete(key);
           throw error;
@@ -285,11 +295,12 @@ export class ReaderGateway {
       );
     return {
       stylesheet: assets.stylesheet,
-      javascript: await assets.scripts.get(key),
+      stylesheetId: assets.stylesheetId,
+      ...(await assets.scripts.get(key)),
     };
   }
 
-  async page(viewKey, chapterId) {
+  async page(viewKey, chapterId, knownAssets = {}) {
     const view = this.requireView(viewKey);
     const { state } = view;
     if (
@@ -334,7 +345,14 @@ export class ReaderGateway {
     );
     return {
       body,
-      ...assets,
+      stylesheetId: assets.stylesheetId,
+      javascriptId: assets.javascriptId,
+      ...(knownAssets.stylesheetId === assets.stylesheetId
+        ? {}
+        : { stylesheet: assets.stylesheet }),
+      ...(knownAssets.javascriptIds?.includes(assets.javascriptId)
+        ? {}
+        : { javascript: assets.javascript }),
       title: state.preview.result.manifest.title,
       chapterId: chapterId ?? null,
       cursor: state.cursor,

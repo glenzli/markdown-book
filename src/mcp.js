@@ -207,11 +207,28 @@ export function createBookMcp(options = {}) {
       title: "Read a book page",
       description:
         "Read one rendered page and its local reader, formula fonts and interactive code for this app view.",
-      inputSchema: { viewKey, chapterId },
+      inputSchema: {
+        viewKey,
+        chapterId,
+        assets: z
+          .object({
+            stylesheetId: z
+              .string()
+              .regex(/^[a-f0-9]{64}$/)
+              .optional(),
+            javascriptIds: z
+              .array(z.string().regex(/^[a-f0-9]{64}$/))
+              .max(32)
+              .optional(),
+          })
+          .optional(),
+      },
       annotations,
       _meta: appOnly,
     },
-    attempt((input) => gateway.page(input.viewKey, input.chapterId)),
+    attempt((input) =>
+      gateway.page(input.viewKey, input.chapterId, input.assets),
+    ),
   );
   server.registerTool(
     "reader_index",

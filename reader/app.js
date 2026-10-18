@@ -39,6 +39,24 @@ let book,
   queuedLaunch,
   wakeWatch,
   initializedPanel = false;
+// Cache source text, not mounted components: every chapter still gets its own lifecycle.
+const pageScripts = new Map();
+const scriptBudget = 8 * 1024 * 1024;
+let scriptBytes = 0;
+function rememberScript(id, source) {
+  if (!id || source.length * 2 > scriptBudget) return;
+  if (pageScripts.has(id)) {
+    scriptBytes -= pageScripts.get(id).length * 2;
+    pageScripts.delete(id);
+  }
+  pageScripts.set(id, source);
+  scriptBytes += source.length * 2;
+  while (scriptBytes > scriptBudget || pageScripts.size > 32) {
+    const oldest = pageScripts.keys().next().value;
+    scriptBytes -= pageScripts.get(oldest).length * 2;
+    pageScripts.delete(oldest);
+  }
+}
 let discussionAvailable = false;
 const send = (message) =>
   parent.postMessage({ jsonrpc: "2.0", ...message }, origin);
@@ -195,24 +213,30 @@ async function showLibrary(root = libraryRoot) {
 }
 async function page(chapterId = null, anchor = "", scrollTop = 0) {
   const generation = ++pageGeneration;
-  const args = { viewKey, ...(chapterId ? { chapterId } : {}) };
+  const styleId = document.getElementById("mb-book-style")?.dataset.assetId;
+  const args = {
+    viewKey,
+    ...(chapterId ? { chapterId } : {}),
+    assets: {
+      ...(styleId ? { stylesheetId: styleId } : {}),
+      javascriptIds: [...pageScripts.keys()],
+    },
+  };
   let result;
   try {
     result = await call("reader_page", args);
   } catch (error) {
     // The host may restart the MCP process while keeping this panel open.
-    if (
-      error.message !== "Reader view not found." ||
-      stopped ||
-      generation !== pageGeneration ||
-      !book
-    )
-      throw error;
+    if (stopped || generation !== pageGeneration) return;
+    if (error.message !== "Reader view not found." || !book) throw error;
     await call("reader_view", { viewKey, root: book.root });
     if (stopped || generation !== pageGeneration) return;
     result = await call("reader_page", args);
   }
   if (stopped || generation !== pageGeneration) return;
+  const javascript = result.javascript ?? pageScripts.get(result.javascriptId);
+  if (typeof javascript !== "string") throw new Error(t("scriptUnavailable"));
+  rememberScript(result.javascriptId, javascript);
   disposePage();
   currentChapter = chapterId;
   cursor = result.cursor;
@@ -222,7 +246,12 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
     style.id = "mb-book-style";
     document.head.append(style);
   }
-  style.textContent = result.stylesheet;
+  // Keep parsed formula fonts and CSS in place when the bytes have not changed.
+  if (!result.stylesheetId || style.dataset.assetId !== result.stylesheetId) {
+    style.textContent = result.stylesheet;
+    if (result.stylesheetId) style.dataset.assetId = result.stylesheetId;
+    else delete style.dataset.assetId;
+  }
   document.body.innerHTML = result.body;
   document.title = result.title;
   const switcher = document.createElement("button");
@@ -266,7 +295,7 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   moduleUrl = URL.createObjectURL(
     new Blob(
       [
-        `if (document.documentElement.dataset.mbPage === ${JSON.stringify(String(generation))}) {\n${result.javascript}\n}`,
+        `if (document.documentElement.dataset.mbPage === ${JSON.stringify(String(generation))}) {\n${javascript}\n}`,
       ],
       { type: "text/javascript" },
     ),
@@ -438,6 +467,8 @@ addEventListener("message", (event) => {
     ++pollGeneration;
     wakeWatch?.();
     disposePage();
+    pageScripts.clear();
+    scriptBytes = 0;
     for (const work of pending.values()) {
       clearTimeout(work.timer);
       work.reject(new Error(t("panelClosed")));
@@ -460,7 +491,7 @@ addEventListener("message", (event) => {
 });
 async function initialize() {
   const initialized = await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.6.2" },
+    appInfo: { name: "markdown-book", version: "0.6.3" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });

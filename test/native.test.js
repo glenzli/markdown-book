@@ -100,6 +100,40 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
   );
   assert.doesNotMatch(page.javascript, /import\(["']\.\//);
   assert.match(page.javascript, /mount/);
+  assert.match(page.stylesheetId, /^[a-f0-9]{64}$/);
+  assert.match(page.javascriptId, /^[a-f0-9]{64}$/);
+  const known = {
+    stylesheetId: page.stylesheetId,
+    javascriptIds: [page.javascriptId],
+  };
+  const warm = await call("reader_page", {
+    viewKey: a,
+    chapterId: "first",
+    assets: known,
+  });
+  assert.equal(warm.body, page.body);
+  assert.equal(warm.stylesheet, undefined);
+  assert.equal(warm.javascript, undefined);
+  assert.equal(warm.stylesheetId, page.stylesheetId);
+  assert.equal(warm.javascriptId, page.javascriptId);
+  assert.ok(JSON.stringify(warm).length < JSON.stringify(page).length / 10);
+  const plain = await call("reader_page", {
+    viewKey: a,
+    chapterId: "second",
+    assets: known,
+  });
+  assert.equal(plain.stylesheet, undefined);
+  assert.equal(typeof plain.javascript, "string");
+  assert.notEqual(plain.javascriptId, page.javascriptId);
+  // Matching bytes can be reused across books; view identity still selects body and title.
+  const other = await call("reader_page", {
+    viewKey: b,
+    chapterId: "first",
+    assets: known,
+  });
+  assert.equal(other.title, "另一本书");
+  assert.equal(other.stylesheet, undefined);
+  assert.equal(other.javascript, undefined);
   assert.equal((await call("reader_page", { viewKey: b })).title, "另一本书");
   assert.equal(
     (
@@ -151,7 +185,12 @@ test("native view watches source, retains a good build on error, recovers, and d
     "# 第二章\n\n## 第二节\n\n更新后的内容。\n",
   );
   await waitFor(() => state.cursor > 0);
-  const revised = await gateway.page(viewKey, "second");
+  const revised = await gateway.page(viewKey, "second", {
+    stylesheetId: original.stylesheetId,
+    javascriptIds: [original.javascriptId],
+  });
+  assert.equal(revised.stylesheet, undefined);
+  assert.equal(revised.javascript, undefined);
   assert.match(revised.body, /更新后的内容/);
   assert.notEqual(revised.digest, original.digest);
   await writeFile(
@@ -166,6 +205,18 @@ test("native view watches source, retains a good build on error, recovers, and d
   );
   await waitFor(() => !state.error);
   assert.match((await gateway.page(viewKey, "second")).body, /已恢复/);
+  const beforeComponent = await gateway.page(viewKey, "first");
+  const cursor = state.cursor;
+  book.manifest.components.sample.props.label = "updated-experiment";
+  await book.manifestWrite();
+  await waitFor(() => state.cursor > cursor);
+  const changedComponent = await gateway.page(viewKey, "first", {
+    stylesheetId: beforeComponent.stylesheetId,
+    javascriptIds: [beforeComponent.javascriptId],
+  });
+  assert.equal(changedComponent.stylesheet, undefined);
+  assert.notEqual(changedComponent.javascriptId, beforeComponent.javascriptId);
+  assert.match(changedComponent.javascript, /updated-experiment/);
   const workspace = path.join(book.root, "workspace");
   await mkdir(workspace);
   await symlink(book.root, path.join(workspace, "outside"), "dir");
