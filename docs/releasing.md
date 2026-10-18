@@ -50,3 +50,5 @@ not a substitute for that UI check. Retain the working old cache until live host
 With a native panel kept open, add a chapter to a temporary book manifest and wait for the live rebuild. Enter the new chapter through the refreshed directory, including an anchored link. The opening-time chapter list must not block it. Repeat after removing an earlier chapter, and confirm the rendered directory and backend agree.
 
 Scroll the directory to a late chapter, switch chapters, collapse and expand it, and reopen the same book. The selected entry should remain visible without scrolling the main text. On narrow screens, reopening the directory should keep its position. Check a second book for position isolation and a long chapter outline for bounded, independent scrolling.
+
+Delay the chapter module in a local acceptance host and record the visible directory offset on each animation frame between body replacement and module startup. A late-chapter selection must remain at its saved offset throughout that gap, with no frame at zero. Also check a collapsed directory stays hidden before the module starts. Keep this delay in the test host only.

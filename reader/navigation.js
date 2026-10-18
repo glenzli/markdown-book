@@ -1,3 +1,57 @@
+function savedPosition(preference, root, state) {
+  const key = [root ?? state.base ?? "/", state.bookId ?? ""].join(":");
+  let positions = preference.scrollPositions;
+  if (!positions || typeof positions !== "object" || Array.isArray(positions))
+    positions = {};
+  const previous = positions[key];
+  const offset = (value) => (Number.isFinite(value) && value >= 0 ? value : 0);
+  return {
+    key,
+    positions,
+    sidebar: offset(previous?.sidebar),
+    toc:
+      previous?.chapterId === (state.chapterId ?? null)
+        ? offset(previous?.toc)
+        : 0,
+  };
+}
+function restoreScrollPosition(sidebar, toc, position) {
+  if (!sidebar.hidden && sidebar.clientHeight) {
+    sidebar.scrollTop = position.sidebar;
+    const active = sidebar.querySelector('[aria-current="page"]');
+    if (active) {
+      const item = active.getBoundingClientRect(),
+        box = sidebar.getBoundingClientRect();
+      if (item.top < box.top) sidebar.scrollTop += item.top - box.top;
+      else if (item.bottom > box.bottom)
+        sidebar.scrollTop += item.bottom - box.bottom;
+    }
+    position.sidebar = sidebar.scrollTop;
+  }
+  if (toc?.open && toc.clientHeight) toc.scrollTop = position.toc;
+}
+
+// The native shell runs this in the body-replacement task. Chapter modules may
+// load later, so waiting for startNavigation would expose the directory at zero.
+export function prepareNavigation({ preference = {}, root, state = {} }) {
+  if (!preference || typeof preference !== "object") preference = {};
+  const sidebar = document.getElementById("book-sidebar");
+  if (!sidebar) return;
+  const open =
+    !matchMedia("(max-width: 760px)").matches &&
+    preference.sidebarCollapsed !== true;
+  sidebar.hidden = !open;
+  document
+    .querySelector(".reader-layout")
+    ?.toggleAttribute("data-sidebar-collapsed", !open);
+  document
+    .querySelector(".navigation-toggle")
+    ?.setAttribute("aria-expanded", String(open));
+  const toc = document.querySelector(".on-this-page");
+  if (toc) toc.open = preference.tocCollapsed !== true;
+  restoreScrollPosition(sidebar, toc, savedPosition(preference, root, state));
+}
+
 export function startNavigation({
   signal,
   storage,
@@ -21,20 +75,11 @@ export function startNavigation({
   if (!preference || typeof preference !== "object") preference = {};
   let collapsed = preference.sidebarCollapsed === true,
     mobileOpen = false;
-  const positionKey = [
-    host?.root ?? state.base ?? "/",
-    state.bookId ?? "",
-  ].join(":");
-  let positions = preference.scrollPositions;
-  if (!positions || typeof positions !== "object" || Array.isArray(positions))
-    positions = {};
-  const previous = positions[positionKey];
-  const offset = (value) => (Number.isFinite(value) && value >= 0 ? value : 0);
-  let sidebarScroll = offset(previous?.sidebar),
-    tocScroll =
-      previous?.chapterId === (state.chapterId ?? null)
-        ? offset(previous?.toc)
-        : 0,
+  const position = savedPosition(preference, host?.root, state);
+  const positionKey = position.key;
+  let positions = position.positions;
+  let sidebarScroll = position.sidebar,
+    tocScroll = position.toc,
     scrollTimer;
   if (toc) toc.open = preference.tocCollapsed !== true;
   function captureScroll() {
@@ -44,20 +89,11 @@ export function startNavigation({
   }
   function restoreScroll() {
     if (signal.aborted) return;
-    if (!sidebar.hidden && sidebar.clientHeight) {
-      sidebar.scrollTop = sidebarScroll;
-      const active = sidebar.querySelector('[aria-current="page"]');
-      if (active) {
-        const item = active.getBoundingClientRect(),
-          box = sidebar.getBoundingClientRect();
-        if (item.top < box.top) sidebar.scrollTop += item.top - box.top;
-        else if (item.bottom > box.bottom)
-          sidebar.scrollTop += item.bottom - box.bottom;
-      }
-      sidebarScroll = sidebar.scrollTop;
-    }
-    if (toc?.open && toc.clientHeight) toc.scrollTop = tocScroll;
+    const position = { sidebar: sidebarScroll, toc: tocScroll };
+    restoreScrollPosition(sidebar, toc, position);
+    sidebarScroll = position.sidebar;
   }
+
   function remember() {
     clearTimeout(scrollTimer);
     const entries = Object.entries(positions).filter(

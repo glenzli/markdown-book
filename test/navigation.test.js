@@ -1,10 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { startNavigation } from "../reader/navigation.js";
+import { startNavigation, prepareNavigation } from "../reader/navigation.js";
 
 function fixture(
   t,
   {
+    prepareOnly = false,
     saved = {},
     book = "book",
     chapter = "chapter18",
@@ -92,7 +93,7 @@ function fixture(
       writable: true,
     });
   const storageValues = new Map();
-  startNavigation({
+  const options = {
     signal: controller.signal,
     state: { base: "/", bookId: book, chapterId: chapter },
     storage: {
@@ -107,7 +108,10 @@ function fixture(
       },
     },
     preferences: { t: (k) => k, subscribe: (fn) => fn() },
-  });
+  };
+  if (prepareOnly)
+    prepareNavigation({ preference: saved, state: options.state });
+  else startNavigation(options);
   for (const fn of timers.values()) fn();
   timers.clear();
   return {
@@ -208,4 +212,42 @@ test("corrupt positions are ignored and an unmounted reader cancels pending save
   a.sidebar.dispatchEvent(new Event("scroll"));
   assert.equal(a.writes.length, count);
   assert.equal(a.value.scrollPositions[key].sidebar, 140);
+});
+
+test("the native shell restores directory and outline synchronously without starting a chapter module", (t) => {
+  const a = fixture(t, {
+    prepareOnly: true,
+    saved: {
+      scrollPositions: {
+        [key]: { sidebar: 780, toc: 120, chapterId: "chapter18" },
+      },
+    },
+  });
+  assert.equal(a.sidebar.scrollTop, 780);
+  assert.equal(a.toc.scrollTop, 120);
+  assert.equal(a.sidebar.hidden, false);
+  assert.equal(a.toggle.attributes["aria-expanded"], "true");
+});
+test("a collapsed directory stays hidden during the gap before the chapter module starts", (t) => {
+  const a = fixture(t, {
+    prepareOnly: true,
+    saved: { sidebarCollapsed: true, tocCollapsed: true },
+  });
+  assert.equal(a.sidebar.hidden, true);
+  assert.equal(a.toggle.attributes["aria-expanded"], "false");
+  assert.equal(a.toc.open, false);
+});
+test("first-paint restoration reveals the selected chapter but resets a different chapter outline", (t) => {
+  const a = fixture(t, {
+    prepareOnly: true,
+    chapter: "chapter17",
+    activeOffset: 900,
+    saved: {
+      scrollPositions: {
+        [key]: { sidebar: 0, toc: 120, chapterId: "chapter18" },
+      },
+    },
+  });
+  assert.equal(a.sidebar.scrollTop, 650);
+  assert.equal(a.toc.scrollTop, 0);
 });

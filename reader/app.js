@@ -1,4 +1,5 @@
 import { createBrowserPreferences } from "./preferences.js";
+import { prepareNavigation } from "./navigation.js";
 import { renderLibrary } from "./library.js";
 import { canDraftDiscussion, discussionRequest } from "./reference-data.js";
 const appMark = document.querySelector(".mb-app-mark")?.outerHTML ?? "";
@@ -421,6 +422,11 @@ async function page(
     else delete style.dataset.assetId;
   }
   document.body.innerHTML = result.body;
+  prepareNavigation({
+    preference: saved.readerLayout,
+    root: book.root,
+    state: { bookId: result.bookId, chapterId },
+  });
   document.title = result.title;
   const switcher = document.createElement("button");
   switcher.type = "button";
@@ -756,7 +762,7 @@ function selectSeed(seed) {
 async function initialize() {
   if (!hostInitialized) {
     const initialized = await request("ui/initialize", {
-      appInfo: { name: "markdown-book", version: "0.7.3" },
+      appInfo: { name: "markdown-book", version: "0.7.4" },
       appCapabilities: {},
       protocolVersion: "2026-01-26",
     });

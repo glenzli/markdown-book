@@ -20,7 +20,8 @@ async function app({
     messages = [],
     listeners = new Map(),
     blobs = [],
-    events = [];
+    events = [],
+    prepared = [];
   let timerId = 0,
     library;
   class Element {
@@ -63,6 +64,9 @@ async function app({
     topbar = new Element(),
     body = new Element(),
     head = new Element();
+  head.append = (element) => {
+    if (element.id === "mb-page-module") events.push("append-page-module");
+  };
   const document = {
     body,
     head,
@@ -164,6 +168,10 @@ async function app({
     },
     Blob,
     Event,
+    prepareNavigation: (options) => {
+      prepared.push(options);
+      events.push("prepare-navigation");
+    },
     createBrowserPreferences: () => ({ preferences, dispose() {} }),
     renderLibrary: (options) => {
       library = options;
@@ -202,6 +210,7 @@ async function app({
     timers,
     blobs,
     events,
+    prepared,
     get host() {
       return context.__markdownBookHost;
     },
@@ -918,6 +927,26 @@ test("native links accept a newly rendered chapter after a manifest update, with
     a.messages.filter((m) => m.params?.name === "reader_page").at(-1).params
       .arguments.chapterId,
     "lens-engineering",
+  );
+  await a.close();
+});
+
+test("native directory layout is restored before the asynchronous chapter module is appended", async () => {
+  const readerLayout = {
+    scrollPositions: {
+      "/book:book-id": { sidebar: 780, toc: 0, chapterId: "lens-engineering" },
+    },
+  };
+  const a = await app({ widgetState: { readerLayout } });
+  await a.api.launch("/book", "lens-engineering");
+  assert.equal(a.prepared.length, 1);
+  assert.equal(a.prepared[0].preference, readerLayout);
+  assert.equal(a.prepared[0].root, "/book");
+  assert.equal(a.prepared[0].state.bookId, "book-id");
+  assert.equal(a.prepared[0].state.chapterId, "lens-engineering");
+  assert.ok(
+    a.events.indexOf("prepare-navigation") <
+      a.events.indexOf("append-page-module"),
   );
   await a.close();
 });
