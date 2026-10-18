@@ -540,7 +540,7 @@ addEventListener("message", (event) => {
 });
 async function initialize() {
   const initialized = await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.7.0" },
+    appInfo: { name: "markdown-book", version: "0.7.1" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });
