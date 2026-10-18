@@ -33,7 +33,12 @@ if (connecting) connecting.textContent = t("connecting");
 let book,
   currentChapter = null,
   cursor = 0,
-  moduleUrl;
+  moduleUrl,
+  openingPromise,
+  lastLaunch,
+  queuedLaunch,
+  wakeWatch,
+  initializedPanel = false;
 let discussionAvailable = false;
 const send = (message) =>
   parent.postMessage({ jsonrpc: "2.0", ...message }, origin);
@@ -49,10 +54,19 @@ function request(method, params = {}, allowStopped = false) {
       },
       method === "tools/call" && params.name === "choose_book_directory"
         ? 300000
-        : 25000,
+        : method === "tools/call" &&
+            ["reader_view", "reader_page"].includes(params.name)
+          ? 60000
+          : 25000,
     );
     pending.set(id, { resolve, reject, timer });
-    send({ id, method, params });
+    try {
+      send({ id, method, params });
+    } catch (error) {
+      pending.delete(id);
+      clearTimeout(timer);
+      reject(error);
+    }
   });
 }
 async function call(name, args, allowStopped = false) {
@@ -99,6 +113,36 @@ function showError(error) {
   }
   notice.textContent = error.message ?? String(error);
   notice.hidden = false;
+  let retry = document.getElementById("mb-retry-reading");
+  if (!retry && !stopped) {
+    retry = document.createElement("button");
+    retry.id = "mb-retry-reading";
+    retry.type = "button";
+    retry.textContent = t("retryReading");
+    retry.addEventListener("click", () => {
+      if (lastLaunch) launch(...lastLaunch);
+      else void initialize().catch(showError);
+    });
+    notice.after(retry);
+  }
+}
+function loading(active) {
+  if (active) document.getElementById("mb-retry-reading")?.remove();
+  let status = document.getElementById("mb-opening-status");
+  if (active) {
+    document.querySelector('[role="alert"]')?.setAttribute("hidden", "");
+    if (!status) {
+      status = document.createElement("p");
+      status.id = "mb-opening-status";
+      status.setAttribute("role", "status");
+      document.body.prepend(status);
+    }
+    status.textContent = t("openingBook");
+  } else status?.remove();
+  for (const button of document.querySelectorAll(
+    ".mb-book-open, .mb-choose-directory, .mb-refresh-library, .mb-path-details button",
+  ))
+    button.disabled = active;
 }
 let libraryRoot,
   libraryReturn,
@@ -114,6 +158,7 @@ async function showLibrary(root = libraryRoot) {
   const previous = libraryReturn;
   const generation = ++openingGeneration;
   ++pollGeneration;
+  wakeWatch?.();
   ++pageGeneration;
   book = null;
   disposePage();
@@ -150,10 +195,23 @@ async function showLibrary(root = libraryRoot) {
 }
 async function page(chapterId = null, anchor = "", scrollTop = 0) {
   const generation = ++pageGeneration;
-  const result = await call("reader_page", {
-    viewKey,
-    ...(chapterId ? { chapterId } : {}),
-  });
+  const args = { viewKey, ...(chapterId ? { chapterId } : {}) };
+  let result;
+  try {
+    result = await call("reader_page", args);
+  } catch (error) {
+    // The host may restart the MCP process while keeping this panel open.
+    if (
+      error.message !== "Reader view not found." ||
+      stopped ||
+      generation !== pageGeneration ||
+      !book
+    )
+      throw error;
+    await call("reader_view", { viewKey, root: book.root });
+    if (stopped || generation !== pageGeneration) return;
+    result = await call("reader_page", args);
+  }
   if (stopped || generation !== pageGeneration) return;
   disposePage();
   currentChapter = chapterId;
@@ -229,6 +287,7 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
 async function open(root, chapterId, resumeScroll = 0) {
   const selection = ++openingGeneration;
   ++pollGeneration;
+  wakeWatch?.();
   ++pageGeneration;
   const result = await call("reader_view", {
     viewKey,
@@ -243,14 +302,23 @@ async function open(root, chapterId, resumeScroll = 0) {
   await page(chapterId ?? null, "", resumeScroll);
   if (stopped || selection !== openingGeneration) return;
   const generation = ++pollGeneration;
+  void watch(generation).catch(showError);
+}
+async function watch(generation) {
   while (!stopped && generation === pollGeneration) {
     try {
       const update = await call("reader_updates", {
         viewKey,
         cursor,
-        waitMs: 15000,
+        // Some hosts serialize app calls. Do not hold that queue during idle watches.
+        waitMs: 0,
       });
-      if (stopped || generation !== pollGeneration || update.closed) return;
+      if (stopped || generation !== pollGeneration) return;
+      if (update.closed) {
+        await call("reader_view", { viewKey, root: book.root });
+        if (stopped || generation !== pollGeneration) return;
+        await page(currentChapter, "", window.scrollY);
+      }
       if (update.cursor !== cursor) {
         cursor = update.cursor;
         if (update.error)
@@ -260,16 +328,42 @@ async function open(root, chapterId, resumeScroll = 0) {
     } catch (error) {
       if (stopped || generation !== pollGeneration) return;
       showError(error);
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      return; // A visible retry replaces endless failing background requests.
     }
+    await new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        if (wakeWatch === done) wakeWatch = undefined;
+        resolve();
+      };
+      const timer = setTimeout(done, document.hidden ? 10000 : 2000);
+      wakeWatch = done;
+    });
   }
 }
 // Run the watch loop independently of the opening request and report its errors.
 function launch(root, chapterId, scrollTop) {
+  // The book buttons remain present until the page arrives. Coalesce repeated clicks.
+  if (openingPromise) {
+    if (root !== lastLaunch?.[0] || chapterId !== lastLaunch?.[1])
+      queuedLaunch = [root, chapterId, scrollTop];
+    return openingPromise;
+  }
+  lastLaunch = [root, chapterId, scrollTop];
   const generation = openingGeneration + 1;
-  void open(root, chapterId, scrollTop).catch((error) => {
-    if (generation === openingGeneration) showError(error);
-  });
+  loading(true);
+  openingPromise = open(root, chapterId, scrollTop)
+    .catch((error) => {
+      if (generation === openingGeneration) showError(error);
+    })
+    .finally(() => {
+      openingPromise = undefined;
+      loading(false);
+      const next = queuedLaunch;
+      queuedLaunch = undefined;
+      if (next && !stopped) launch(...next);
+    });
+  return openingPromise;
 }
 document.addEventListener(
   "click",
@@ -324,17 +418,25 @@ addEventListener("message", (event) => {
   )
     return;
   if (message.method === "ui/notifications/tool-result") {
-    initial =
+    const seed =
       message.params?._meta?.reader ??
-      message.params?.structuredContent?.reader ??
-      {};
-    receiveSeed?.();
+      message.params?.structuredContent?.reader;
+    if (!seed || stopped) return;
+    initial = seed;
+    if (receiveSeed) receiveSeed();
+    else if (initializedPanel) {
+      // A reused native panel must honor a subsequent explicit Open Reader action.
+      if (seed.choose) void showLibrary(seed.root).catch(showError);
+      else if (seed.root) launch(seed.root, seed.chapterId, 0);
+    }
   } else if (message.method === "ui/notifications/host-context-changed") {
     preferences.updateHost(message.params ?? {});
   } else if (message.method === "ui/resource-teardown") {
     preferenceSession.dispose();
     stopped = true;
+    queuedLaunch = undefined;
     ++pollGeneration;
+    wakeWatch?.();
     disposePage();
     for (const work of pending.values()) {
       clearTimeout(work.timer);
@@ -350,14 +452,15 @@ addEventListener("message", (event) => {
     const work = pending.get(message.id);
     pending.delete(message.id);
     clearTimeout(work.timer);
-    if (origin === "*") origin = event.origin;
+    // Opaque parent origins cannot be used as postMessage targetOrigin.
+    if (origin === "*" && event.origin !== "null") origin = event.origin;
     if (message.error) work.reject(new Error(message.error.message));
     else work.resolve(message.result);
   }
 });
 async function initialize() {
   const initialized = await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.6.1" },
+    appInfo: { name: "markdown-book", version: "0.6.2" },
     appCapabilities: {},
     protocolVersion: "2026-01-26",
   });
@@ -377,6 +480,7 @@ async function initialize() {
         resolve();
       };
     });
+  initializedPanel = true;
   if (initial.choose) {
     await showLibrary(initial.root);
     return;

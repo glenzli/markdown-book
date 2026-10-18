@@ -8,7 +8,7 @@
 
 普通 Markdown 书稿、浏览器互动组件，以及本地、Codex 和网站共用的阅读器。代码与配套文档采用 [MIT](LICENSE) 协议；书稿和素材的许可由各自作者决定。
 
-当前工具版本 **0.6.1**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。
+当前工具版本 **0.6.2**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。
 
 ### 安装 Codex 插件
 
@@ -91,7 +91,7 @@ npm run plugin:sync -- /absolute/path/to/marketplace
 
 Markdown manuscripts, browser interactives, and one reader for local previews, Codex panels, and static websites. The code and accompanying documentation are licensed under [MIT](LICENSE). Books and media retain their authors' own licenses.
 
-Tool version **0.6.1**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet.
+Tool version **0.6.2**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused.
 
 ### Install the Codex plugin
 

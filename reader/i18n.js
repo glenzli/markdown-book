@@ -344,6 +344,8 @@ export const messages = {
     "zh-CN": "阅读面板已关闭",
     en: "The reading panel is closed.",
   },
+  openingBook: { "zh-CN": "正在打开书籍…", en: "Opening book…" },
+  retryReading: { "zh-CN": "重试", en: "Retry" },
   connectionTimeout: {
     "zh-CN": "阅读器连接超时",
     en: "The reader connection timed out.",

@@ -1,6 +1,6 @@
 {
   "name": "markdown-book",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Read, write and validate Markdown books with portable interactive components.",
   "author": {
     "name": "glenzli",
