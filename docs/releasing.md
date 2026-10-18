@@ -44,3 +44,9 @@ idempotent local experiment assignments participate in recovery; discussion mess
 Run the app lifecycle regressions, then the release gate once. After installing, separately check
 the actual sidebar opens, navigates and restores an experiment; a fresh backend-only consumer is
 not a substitute for that UI check. Retain the working old cache until live hosts have reloaded.
+
+## Navigation acceptance
+
+With a native panel kept open, add a chapter to a temporary book manifest and wait for the live rebuild. Enter the new chapter through the refreshed directory, including an anchored link. The opening-time chapter list must not block it. Repeat after removing an earlier chapter, and confirm the rendered directory and backend agree.
+
+Scroll the directory to a late chapter, switch chapters, collapse and expand it, and reopen the same book. The selected entry should remain visible without scrolling the main text. On narrow screens, reopening the directory should keep its position. Check a second book for position isolation and a long chapter outline for bounded, independent scrolling.

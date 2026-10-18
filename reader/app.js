@@ -311,6 +311,7 @@ async function showLibrary(root = libraryRoot) {
   ++pollGeneration;
   wakeWatch?.();
   ++pageGeneration;
+  document.dispatchEvent(new Event("mb:save-navigation"));
   document.dispatchEvent(new Event("mb:save-experiments"));
   if (book) savePending(book);
   disposePage();
@@ -361,6 +362,7 @@ async function page(
   keepUnchanged = false,
 ) {
   let generation = keepUnchanged ? pageGeneration : ++pageGeneration;
+  document.dispatchEvent(new Event("mb:save-navigation"));
   document.dispatchEvent(new Event("mb:save-experiments"));
   if (book) savePending(book);
   await experimentWrites;
@@ -535,6 +537,7 @@ async function open(root, chapterId, resumeScroll = 0, resumePosition = null) {
   wakeWatch?.();
   ++pageGeneration;
   persist();
+  document.dispatchEvent(new Event("mb:save-navigation"));
   document.dispatchEvent(new Event("mb:save-experiments"));
   if (book) savePending(book);
   disposePage();
@@ -658,8 +661,15 @@ document.addEventListener(
       event.preventDefault();
       const [pathname, anchor = ""] = href.split("#");
       const id = pathname.split("/").filter(Boolean)[0];
-      if (!id || book?.chapters.some((chapter) => chapter.id === id))
-        void page(id ?? null, anchor).catch(showError);
+      // A live rebuild can add chapters after reader_view was opened. The
+      // rendered directory is current; the backend validates the requested ID.
+      const inDirectory = [
+        ...document.querySelectorAll("#book-chapters a[href]"),
+      ].some(
+        (entry) =>
+          entry.getAttribute("href").split("/").filter(Boolean)[0] === id,
+      );
+      if (!id || inDirectory) void page(id ?? null, anchor).catch(showError);
       return;
     }
     if (/^(https?:|mailto:|tel:)/i.test(href)) {
@@ -696,6 +706,7 @@ addEventListener("message", (event) => {
   } else if (message.method === "ui/notifications/host-context-changed") {
     preferences.updateHost(message.params ?? {});
   } else if (message.method === "ui/resource-teardown") {
+    document.dispatchEvent(new Event("mb:save-navigation"));
     document.dispatchEvent(new Event("mb:save-experiments"));
     persist();
     if (book) savePending(book);
@@ -745,7 +756,7 @@ function selectSeed(seed) {
 async function initialize() {
   if (!hostInitialized) {
     const initialized = await request("ui/initialize", {
-      appInfo: { name: "markdown-book", version: "0.7.2" },
+      appInfo: { name: "markdown-book", version: "0.7.3" },
       appCapabilities: {},
       protocolVersion: "2026-01-26",
     });

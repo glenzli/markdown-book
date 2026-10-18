@@ -74,14 +74,20 @@ async function app({
         return elements.find((e) => e.role === "alert" && !e.removed);
       return null;
     },
-    querySelectorAll() {
+    chapterLinks: [],
+    querySelectorAll(selector) {
+      if (selector === "#book-chapters a[href]") return this.chapterLinks;
       return [button];
     },
     getElementById: (id) => ids.get(id),
     createElement: () => new Element(),
-    addEventListener() {},
+    listeners: new Map(),
+    addEventListener(type, listener) {
+      this.listeners.set(type, listener);
+    },
     dispatchEvent(event) {
       events.push(event.type);
+      this.listeners.get(event.type)?.(event);
     },
   };
   const emit = (m, source = parent) =>
@@ -881,4 +887,37 @@ test("unchanged recovery retains the mounted experiment, its host and reading po
     a.messages.filter((m) => m.params?.name === "reader_view").length,
     2,
   );
+});
+
+test("native links accept a newly rendered chapter after a manifest update, without reopening the book", async () => {
+  const a = await app({
+    handle(m) {
+      if (m.params.name === "reader_view")
+        return {
+          structuredContent: {
+            root: "/book",
+            bookId: "book-id",
+            chapters: [{ id: "first" }],
+          },
+        };
+    },
+  });
+  await a.api.launch("/book", "first");
+  a.document.chapterLinks = ["first", "lens-engineering"].map((id) => ({
+    getAttribute: () => `/${id}/`,
+  }));
+  const link = { getAttribute: () => "/lens-engineering/#focus" };
+  a.document.listeners.get("click")({
+    target: { closest: () => link },
+    button: 0,
+    preventDefault() {},
+  });
+  await flush();
+  assert.equal(a.document.title, "lens-engineering");
+  assert.equal(
+    a.messages.filter((m) => m.params?.name === "reader_page").at(-1).params
+      .arguments.chapterId,
+    "lens-engineering",
+  );
+  await a.close();
 });

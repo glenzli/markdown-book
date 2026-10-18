@@ -287,6 +287,8 @@ summary:focus-visible {
   position: sticky;
   top: 112px;
   align-self: start;
+  max-height: calc(100vh - 130px);
+  overflow: auto;
 }
 .on-this-page nav {
   display: grid;

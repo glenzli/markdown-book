@@ -21,7 +21,7 @@ import { renderPage } from "./template.js";
 
 const toolRoot = fileURLToPath(new URL("../", import.meta.url));
 const resolveDependency = createRequire(import.meta.url).resolve;
-export const toolVersion = "0.7.2";
+export const toolVersion = "0.7.3";
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 
 export async function checkBook(input = ".", options = {}) {

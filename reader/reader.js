@@ -26,7 +26,13 @@ export function startReader(registry, host) {
   const cleanups = new Set();
   let stopped = false;
   document.documentElement.dataset.readerReady = "true";
-  startNavigation({ signal: controller.signal, storage, host, preferences });
+  startNavigation({
+    signal: controller.signal,
+    storage,
+    host,
+    preferences,
+    state,
+  });
   startSearch({ state, signal: controller.signal, host, preferences });
   const experimentKey = [
     "markdown-book:experiments",
