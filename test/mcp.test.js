@@ -50,6 +50,7 @@ test("packaged stdio tools check, open, reuse and close a real local reader", as
     arguments: {},
   });
   assert.equal(sidebar._meta.reader.choose, true);
+  assert.deepEqual(sidebar.structuredContent.reader, sidebar._meta.reader);
   const checked = await client.callTool({
     name: "check_book",
     arguments: { root: book.root },
@@ -60,6 +61,8 @@ test("packaged stdio tools check, open, reuse and close a real local reader", as
     arguments: { root: book.root, chapterId: "first" },
   });
   assert.equal(opened.isError, undefined);
+  assert.deepEqual(opened.structuredContent.reader, opened._meta.reader);
+  assert.equal(opened.structuredContent.reader.chapterId, "first");
   assert.equal((await fetch(opened.structuredContent.url)).status, 200);
   const reused = await client.callTool({
     name: "open_reader",

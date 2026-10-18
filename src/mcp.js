@@ -120,18 +120,15 @@ export function createBookMcp(options = {}) {
             if (choices.length === 1)
               opened = await gateway.open(choices[0].root, input.chapterId);
           }
+          const reader = {
+            ...(requested ? { root: opened?.root ?? requested } : {}),
+            ...(entrypoint === "global" && !input.root ? { choose: true } : {}),
+            ...(input.chapterId ? { chapterId: input.chapterId } : {}),
+          };
           return {
             content: [{ type: "text", text: "Markdown Book reader is ready." }],
-            structuredContent: { ready: true, ...(opened ?? {}) },
-            _meta: {
-              reader: {
-                ...(requested ? { root: opened?.root ?? requested } : {}),
-                ...(entrypoint === "global" && !input.root
-                  ? { choose: true }
-                  : {}),
-                ...(input.chapterId ? { chapterId: input.chapterId } : {}),
-              },
-            },
+            structuredContent: { ready: true, ...(opened ?? {}), reader },
+            _meta: { reader },
           };
         } catch (error) {
           return {

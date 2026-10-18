@@ -180,9 +180,31 @@ export function startReader(registry, host) {
     },
     { rootMargin: "240px" },
   );
-  document
-    .querySelectorAll("[data-mb-component]")
-    .forEach((element) => observer.observe(element));
+  const containers = [...document.querySelectorAll("[data-mb-component]")];
+  const position = host?.getReadingPosition?.();
+  const resumeIndex =
+    position && Number.isFinite(position.offset)
+      ? containers.findIndex(
+          (element) =>
+            element.dataset.mbComponent === position.component &&
+            componentInstances.get(element) === position.occurrence,
+        )
+      : -1;
+  if (resumeIndex >= 0) {
+    // A component can be much taller than its static fallback. Restore the
+    // semantic location after rebuilding all components above it, not just px.
+    void (async () => {
+      for (const element of containers.slice(0, resumeIndex + 1)) {
+        if (stopped) return;
+        await mount(element);
+      }
+      if (stopped) return;
+      host.restoreReadingPosition(containers[resumeIndex]);
+      containers
+        .slice(resumeIndex + 1)
+        .forEach((element) => observer.observe(element));
+    })();
+  } else containers.forEach((element) => observer.observe(element));
   let events;
   if (
     state.liveReload &&

@@ -31,3 +31,16 @@ codex plugin add markdown-book@markdown-book-local --json
 Before replacing an installed version, preserve any cache still used by a live host process if the installer prunes it. Do not overwrite a running old version with new bytes. After installation, compare distributed files and modes with the package. Reload the plugin or restart the host to use new native code; an installed version number alone does not prove the existing panel updated.
 
 The current manifest uses the supported [Codex compatibility layout](https://developers.openai.com/plugins/build/plugins). Language/appearance use host context when available, with [document locale](https://developers.openai.com/plugins/build/chatgpt-ui#widget-localization) and browser preferences as fallbacks. A repository marketplace is a distribution source, not a submission to the universal public plugin directory.
+
+## Native reconnect acceptance
+
+For changes to the MCP App lifecycle, exercise the packaged resource through a real stdio
+server restart. Reopen the same view, navigate while recovery is pending, and check that late
+responses cannot restore an older book or chapter. Verify saved and unconfirmed experiment
+parameters, including a cold panel, and confirm animation restoration stays paused. Tool-result
+launch context must work with or without private `_meta` delivery. Only reader requests and
+idempotent local experiment assignments participate in recovery; discussion messages do not.
+
+Run the app lifecycle regressions, then the release gate once. After installing, separately check
+the actual sidebar opens, navigates and restores an experiment; a fresh backend-only consumer is
+not a substitute for that UI check. Retain the working old cache until live hosts have reloaded.

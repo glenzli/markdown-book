@@ -8,6 +8,10 @@ export const messages = {
     "zh-CN": "实验参数未能保存：{error}",
     en: "Experiment state could not be saved: {error}",
   },
+  experimentSavePending: {
+    "zh-CN": "实验参数尚未保存，当前设置仍保留。请重试。",
+    en: "Experiment changes are not saved yet. Your current settings are retained. Retry to save them.",
+  },
   discussExperiment: { "zh-CN": "讨论这个实验", en: "Discuss this experiment" },
   includeExperiment: {
     "zh-CN": "附上演示参数与读数",

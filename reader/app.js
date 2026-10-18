@@ -11,7 +11,9 @@ let sequence = 0,
   initial,
   receiveSeed,
   pollGeneration = 0,
-  pageGeneration = 0;
+  pageGeneration = 0,
+  renderedPageGeneration = 0,
+  renderedPage;
 let saved = window.openai?.widgetState ?? {};
 const preferenceSession = createBrowserPreferences({
   observeHostLanguage: true,
@@ -38,11 +40,25 @@ let book,
   lastLaunch,
   queuedLaunch,
   wakeWatch,
-  initializedPanel = false;
+  initializedPanel = false,
+  hostInitialized = false,
+  selectionStarted = false,
+  recovery,
+  viewRevision = 0;
 // Cache source text, not mounted components: every chapter still gets its own lifecycle.
 const pageScripts = new Map();
 let experimentWrites = Promise.resolve(),
   experimentRevision = 0;
+const pendingExperiments = new Map(
+  Object.entries(saved.pendingExperiments ?? {}).filter(
+    ([, entry]) =>
+      entry &&
+      typeof entry.bookId === "string" &&
+      entry.values &&
+      typeof entry.values === "object" &&
+      !Array.isArray(entry.values),
+  ),
+);
 const scriptBudget = 8 * 1024 * 1024;
 let scriptBytes = 0;
 function rememberScript(id, source) {
@@ -102,6 +118,117 @@ async function call(name, args, allowStopped = false) {
     );
   return result.structuredContent;
 }
+
+function activeBook(selected) {
+  if (stopped || !selected || book !== selected)
+    throw new Error(t("positionChanged"));
+}
+async function recoverView(selected, revision) {
+  activeBook(selected);
+  if (recovery?.book === selected) return recovery.promise;
+  if (revision !== viewRevision) return;
+  const work = { book: selected };
+  work.promise = (async () => {
+    const opened = await call("reader_view", { viewKey, root: selected.root });
+    activeBook(selected);
+    if (opened.root !== selected.root) throw new Error(t("positionChanged"));
+    cursor = 0;
+    viewRevision++;
+  })().finally(() => {
+    if (recovery === work) recovery = undefined;
+  });
+  recovery = work;
+  return work.promise;
+}
+// Recreate only this selection. The only write using this path is an idempotent
+// assignment of experiment parameters; conversation messages never use it.
+async function viewCall(name, args, selected = book, allowStopped = false) {
+  const revision = viewRevision;
+  if (!stopped && recovery?.book === selected) await recovery.promise;
+  try {
+    return await call(name, args, allowStopped);
+  } catch (error) {
+    if (error.message !== "Reader view not found." || stopped || !selected)
+      throw error;
+    await recoverView(selected, revision);
+    activeBook(selected);
+    return call(name, args, allowStopped);
+  }
+}
+function persistPending() {
+  saved = {
+    ...saved,
+    pendingExperiments: Object.fromEntries(pendingExperiments),
+  };
+  window.openai?.setWidgetState?.(saved);
+}
+function savePending(selected) {
+  experimentWrites = experimentWrites
+    .then(async () => {
+      const entry = pendingExperiments.get(selected.root);
+      if (!entry || entry.bookId !== selected.bookId) return;
+      const values = { ...entry.values };
+      if (!Object.keys(values).length) return;
+      await viewCall(
+        "save_reader_experiments",
+        {
+          viewKey,
+          root: selected.root,
+          bookId: entry.bookId,
+          values,
+        },
+        selected,
+        true,
+      );
+      const current = pendingExperiments.get(selected.root);
+      if (current !== entry) return;
+      for (const [key, value] of Object.entries(values))
+        if (current.values[key] === value) delete current.values[key];
+      if (!Object.keys(current.values).length)
+        pendingExperiments.delete(selected.root);
+      persistPending();
+    })
+    .catch((error) => {
+      if (!stopped)
+        showError(
+          new Error(t("experimentSaveFailed", { error: error.message })),
+        );
+    });
+}
+function experimentSnapshot(remote, selected) {
+  const pending = pendingExperiments.get(selected.root);
+  if (!pending || pending.bookId !== selected.bookId) return remote;
+  const values = { ...remote.values, ...pending.values };
+  for (const [key, value] of Object.entries(values))
+    if (value === null) delete values[key];
+  return { ...remote, values };
+}
+function launchSeed(result) {
+  return (
+    result?._meta?.reader ??
+    result?.structuredContent?.reader ??
+    (result?.structuredContent?.ready === true && result.structuredContent.root
+      ? {
+          root: result.structuredContent.root,
+          chapterId: result.structuredContent.chapterId,
+        }
+      : undefined)
+  );
+}
+
+function readingPosition() {
+  const occurrences = new Map();
+  for (const element of document.querySelectorAll("[data-mb-component]")) {
+    if (!element.getBoundingClientRect) continue;
+    const component = element.dataset.mbComponent;
+    const occurrence = occurrences.get(component) ?? 0;
+    occurrences.set(component, occurrence + 1);
+    const rect = element.getBoundingClientRect();
+    if (rect.bottom > 90 && rect.top < window.innerHeight)
+      return { component, occurrence, offset: rect.top };
+  }
+  return null;
+}
 function persist() {
   if (!book) return;
   saved = {
@@ -109,6 +236,7 @@ function persist() {
     root: book.root,
     chapterId: currentChapter,
     scrollTop: window.scrollY,
+    readingPosition: readingPosition(),
   };
   window.openai?.setWidgetState?.(saved);
 }
@@ -140,7 +268,9 @@ function showError(error) {
     retry.type = "button";
     retry.textContent = t("retryReading");
     retry.addEventListener("click", () => {
-      if (lastLaunch) launch(...lastLaunch);
+      if (book)
+        launch(book.root, currentChapter, window.scrollY, readingPosition());
+      else if (lastLaunch) launch(...lastLaunch);
       else void initialize().catch(showError);
     });
     notice.after(retry);
@@ -174,15 +304,18 @@ async function showLibrary(root = libraryRoot) {
       root: book.root,
       chapterId: currentChapter,
       scrollTop: window.scrollY,
+      readingPosition: readingPosition(),
     };
   const previous = libraryReturn;
   const generation = ++openingGeneration;
   ++pollGeneration;
   wakeWatch?.();
   ++pageGeneration;
-  book = null;
+  document.dispatchEvent(new Event("mb:save-experiments"));
+  if (book) savePending(book);
   disposePage();
   await experimentWrites;
+  book = null;
   await call("close_reader_view", { viewKey });
   const data = await call("reader_library", { ...(root ? { root } : {}) });
   if (stopped || generation !== openingGeneration) return;
@@ -197,7 +330,13 @@ async function showLibrary(root = libraryRoot) {
       launch(root, chapterId);
     },
     onBack: previous
-      ? () => launch(previous.root, previous.chapterId, previous.scrollTop)
+      ? () =>
+          launch(
+            previous.root,
+            previous.chapterId,
+            previous.scrollTop,
+            previous.readingPosition,
+          )
       : null,
     onRefresh: () => showLibrary(root),
     onForget: async (root) => {
@@ -214,9 +353,16 @@ async function showLibrary(root = libraryRoot) {
   });
   window.scrollTo(0, 0);
 }
-async function page(chapterId = null, anchor = "", scrollTop = 0) {
-  const generation = ++pageGeneration;
+async function page(
+  chapterId = null,
+  anchor = "",
+  scrollTop = 0,
+  resumePosition = null,
+  keepUnchanged = false,
+) {
+  let generation = keepUnchanged ? pageGeneration : ++pageGeneration;
   document.dispatchEvent(new Event("mb:save-experiments"));
+  if (book) savePending(book);
   await experimentWrites;
   if (stopped || generation !== pageGeneration) return;
   const savedRevision = experimentRevision;
@@ -231,19 +377,31 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   };
   let result;
   try {
-    result = await call("reader_page", args);
+    result = await viewCall("reader_page", args);
   } catch (error) {
-    // The host may restart the MCP process while keeping this panel open.
     if (stopped || generation !== pageGeneration) return;
-    if (error.message !== "Reader view not found." || !book) throw error;
-    await call("reader_view", { viewKey, root: book.root });
-    if (stopped || generation !== pageGeneration) return;
-    result = await call("reader_page", args);
+    throw error;
   }
   if (stopped || generation !== pageGeneration) return;
+  if (
+    keepUnchanged &&
+    result.digest &&
+    renderedPage?.book === book &&
+    renderedPage.chapterId === chapterId &&
+    renderedPage.digest === result.digest &&
+    renderedPage.javascriptId === result.javascriptId
+  ) {
+    cursor = result.cursor;
+    renderedPageGeneration = generation;
+    if (result.error)
+      showError(new Error(t("updateFailed", { error: result.error })));
+    persist();
+    return;
+  }
   const javascript = result.javascript ?? pageScripts.get(result.javascriptId);
   if (typeof javascript !== "string") throw new Error(t("scriptUnavailable"));
   rememberScript(result.javascriptId, javascript);
+  if (keepUnchanged) generation = ++pageGeneration;
   disposePage();
   currentChapter = chapterId;
   cursor = result.cursor;
@@ -270,12 +428,19 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   switcher.addEventListener("click", () => void showLibrary().catch(showError));
   document.querySelector(".topbar").append(switcher);
   const pageBook = book;
+  renderedPage = {
+    book: pageBook,
+    chapterId,
+    digest: result.digest,
+    javascriptId: result.javascriptId,
+  };
+  pageBook.bookId = result.bookId;
   if (result.experiments && experimentRevision === savedRevision)
     saved = {
       ...saved,
       experiments: {
         ...saved.experiments,
-        [pageBook.root]: result.experiments,
+        [pageBook.root]: experimentSnapshot(result.experiments, pageBook),
       },
     };
   const current = () => {
@@ -286,6 +451,17 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
     root: pageBook.root,
     preferences,
     getLayout: () => saved.readerLayout,
+    getReadingPosition: () => resumePosition,
+    restoreReadingPosition: (element) => {
+      if (stopped || generation !== pageGeneration || book !== pageBook) return;
+      window.scrollTo(
+        0,
+        window.scrollY +
+          element.getBoundingClientRect().top -
+          resumePosition.offset,
+      );
+      persist();
+    },
     setLayout: (readerLayout) => {
       if (stopped) return;
       saved = { ...saved, readerLayout };
@@ -301,29 +477,20 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
         delete experiments[Object.keys(experiments)[0]];
       saved = { ...saved, experiments };
       window.openai?.setWidgetState?.(saved);
-      experimentWrites = experimentWrites
-        .then(() =>
-          call(
-            "save_reader_experiments",
-            {
-              viewKey,
-              root: pageBook.root,
-              bookId: result.bookId,
-              values: changes,
-            },
-            true,
-          ),
-        )
-        .catch((error) => {
-          if (!stopped)
-            showError(
-              new Error(t("experimentSaveFailed", { error: error.message })),
-            );
-        });
+      let pending = pendingExperiments.get(pageBook.root);
+      if (!pending || pending.bookId !== result.bookId) {
+        pending = { bookId: result.bookId, values: {} };
+        pendingExperiments.set(pageBook.root, pending);
+      }
+      Object.assign(pending.values, changes);
+      while (pendingExperiments.size > 8)
+        pendingExperiments.delete(pendingExperiments.keys().next().value);
+      persistPending();
+      savePending(pageBook);
     },
     loadIndex: async () => {
       current();
-      const result = await call("reader_index", { viewKey });
+      const result = await viewCall("reader_index", { viewKey }, pageBook);
       current();
       return result;
     },
@@ -354,17 +521,25 @@ async function page(chapterId = null, anchor = "", scrollTop = 0) {
   if (anchor)
     document.getElementById(decodeURIComponent(anchor))?.scrollIntoView();
   else window.scrollTo(0, scrollTop);
+  renderedPageGeneration = generation;
   persist();
   if (result.error)
     showError(new Error(t("updateFailed", { error: result.error })));
+  else if (pendingExperiments.get(pageBook.root)?.bookId === result.bookId)
+    showError(new Error(t("experimentSavePending")));
 }
-async function open(root, chapterId, resumeScroll = 0) {
+async function open(root, chapterId, resumeScroll = 0, resumePosition = null) {
   const selection = ++openingGeneration;
   ++pollGeneration;
   wakeWatch?.();
   ++pageGeneration;
+  persist();
+  document.dispatchEvent(new Event("mb:save-experiments"));
+  if (book) savePending(book);
   disposePage();
   await experimentWrites;
+  if (stopped || selection !== openingGeneration) return;
+  book = null;
   const result = await call("reader_view", {
     viewKey,
     ...(root ? { root } : {}),
@@ -375,7 +550,8 @@ async function open(root, chapterId, resumeScroll = 0) {
     return;
   }
   book = result;
-  await page(chapterId ?? null, "", resumeScroll);
+  viewRevision++;
+  await page(chapterId ?? null, "", resumeScroll, resumePosition);
   if (stopped || selection !== openingGeneration) return;
   const generation = ++pollGeneration;
   void watch(generation).catch(showError);
@@ -383,23 +559,37 @@ async function open(root, chapterId, resumeScroll = 0) {
 async function watch(generation) {
   while (!stopped && generation === pollGeneration) {
     try {
-      const update = await call("reader_updates", {
+      const observedPage = pageGeneration;
+      const observedView = viewRevision;
+      const update = await viewCall("reader_updates", {
         viewKey,
         cursor,
         // Some hosts serialize app calls. Do not hold that queue during idle watches.
         waitMs: 0,
       });
       if (stopped || generation !== pollGeneration) return;
-      if (update.closed) {
-        await call("reader_view", { viewKey, root: book.root });
+      if (
+        observedPage === pageGeneration &&
+        pageGeneration === renderedPageGeneration
+      ) {
+        if (update.closed) await recoverView(book, observedView);
         if (stopped || generation !== pollGeneration) return;
-        await page(currentChapter, "", window.scrollY);
-      }
-      if (update.cursor !== cursor) {
-        cursor = update.cursor;
-        if (update.error)
-          showError(new Error(t("updateFailed", { error: update.error })));
-        else await page(currentChapter, "", window.scrollY);
+        if (observedPage === pageGeneration) {
+          if (viewRevision !== observedView) {
+            await page(
+              currentChapter,
+              "",
+              window.scrollY,
+              readingPosition(),
+              true,
+            );
+          } else if (update.cursor !== cursor) {
+            cursor = update.cursor;
+            if (update.error)
+              showError(new Error(t("updateFailed", { error: update.error })));
+            else await page(currentChapter, "", window.scrollY);
+          }
+        }
       }
     } catch (error) {
       if (stopped || generation !== pollGeneration) return;
@@ -418,17 +608,17 @@ async function watch(generation) {
   }
 }
 // Run the watch loop independently of the opening request and report its errors.
-function launch(root, chapterId, scrollTop) {
+function launch(root, chapterId, scrollTop, resumePosition = null) {
   // The book buttons remain present until the page arrives. Coalesce repeated clicks.
   if (openingPromise) {
     if (root !== lastLaunch?.[0] || chapterId !== lastLaunch?.[1])
-      queuedLaunch = [root, chapterId, scrollTop];
+      queuedLaunch = [root, chapterId, scrollTop, resumePosition];
     return openingPromise;
   }
-  lastLaunch = [root, chapterId, scrollTop];
+  lastLaunch = [root, chapterId, scrollTop, resumePosition];
   const generation = openingGeneration + 1;
   loading(true);
-  openingPromise = open(root, chapterId, scrollTop)
+  openingPromise = open(root, chapterId, scrollTop, resumePosition)
     .catch((error) => {
       if (generation === openingGeneration) showError(error);
     })
@@ -494,20 +684,20 @@ addEventListener("message", (event) => {
   )
     return;
   if (message.method === "ui/notifications/tool-result") {
-    const seed =
-      message.params?._meta?.reader ??
-      message.params?.structuredContent?.reader;
+    const seed = launchSeed(message.params);
     if (!seed || stopped) return;
     initial = seed;
     if (receiveSeed) receiveSeed();
     else if (initializedPanel) {
       // A reused native panel must honor a subsequent explicit Open Reader action.
-      if (seed.choose) void showLibrary(seed.root).catch(showError);
-      else if (seed.root) launch(seed.root, seed.chapterId, 0);
+      void selectSeed(seed).catch(showError);
     }
   } else if (message.method === "ui/notifications/host-context-changed") {
     preferences.updateHost(message.params ?? {});
   } else if (message.method === "ui/resource-teardown") {
+    document.dispatchEvent(new Event("mb:save-experiments"));
+    persist();
+    if (book) savePending(book);
     preferenceSession.dispose();
     stopped = true;
     queuedLaunch = undefined;
@@ -538,20 +728,39 @@ addEventListener("message", (event) => {
     else work.resolve(message.result);
   }
 });
+function selectSeed(seed) {
+  const resume = !selectionStarted;
+  selectionStarted = true;
+  if (seed.choose) return showLibrary(seed.root);
+  if (!seed.root && !saved.root) return showLibrary();
+  const sameBook = !seed.root || seed.root === saved.root;
+  return launch(
+    seed.root ?? saved.root,
+    seed.chapterId ?? (resume && sameBook ? saved.chapterId : null),
+    seed.chapterId ? 0 : resume && sameBook ? (saved.scrollTop ?? 0) : 0,
+    !seed.chapterId && resume && sameBook ? saved.readingPosition : null,
+  );
+}
 async function initialize() {
-  const initialized = await request("ui/initialize", {
-    appInfo: { name: "markdown-book", version: "0.7.1" },
-    appCapabilities: {},
-    protocolVersion: "2026-01-26",
-  });
-  discussionAvailable = canDraftDiscussion(initialized.hostCapabilities);
-  preferences.updateHost(initialized.hostContext ?? {});
-  send({ method: "ui/notifications/initialized" });
-  initial ??= window.openai?.toolOutput?.reader;
+  if (!hostInitialized) {
+    const initialized = await request("ui/initialize", {
+      appInfo: { name: "markdown-book", version: "0.7.2" },
+      appCapabilities: {},
+      protocolVersion: "2026-01-26",
+    });
+    discussionAvailable = canDraftDiscussion(initialized.hostCapabilities);
+    preferences.updateHost(initialized.hostContext ?? {});
+    hostInitialized = true;
+    send({ method: "ui/notifications/initialized" });
+  }
+  initial ??= launchSeed({ structuredContent: window.openai?.toolOutput });
   if (!initial)
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         receiveSeed = undefined;
+        // A late tool result remains useful; retry must not renegotiate a bridge
+        // that the host has already initialized.
+        initializedPanel = true;
         reject(new Error(t("missingSeed")));
       }, 25000);
       receiveSeed = () => {
@@ -561,19 +770,6 @@ async function initialize() {
       };
     });
   initializedPanel = true;
-  if (initial.choose) {
-    await showLibrary(initial.root);
-    return;
-  }
-  if (!initial.root && !saved.root) {
-    await showLibrary();
-    return;
-  }
-  const sameBook = !initial.root || initial.root === saved.root;
-  launch(
-    initial.root ?? saved.root,
-    initial.chapterId ?? (sameBook ? saved.chapterId : null),
-    initial.chapterId ? 0 : sameBook ? (saved.scrollTop ?? 0) : 0,
-  );
+  void selectSeed(initial).catch(showError);
 }
 void initialize().catch(showError);

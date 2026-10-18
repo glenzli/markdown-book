@@ -5,9 +5,15 @@ import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
 const flush = async () => {
-  for (let i = 0; i < 20; i++) await Promise.resolve();
+  for (let i = 0; i < 80; i++) await Promise.resolve();
 };
-async function app({ origin = "https://host.example", handle } = {}) {
+async function app({
+  origin = "https://host.example",
+  handle,
+  widgetState = {},
+  initialSeed = { choose: true },
+  initialize = true,
+} = {}) {
   const ids = new Map(),
     elements = [],
     timers = new Map(),
@@ -102,7 +108,7 @@ async function app({ origin = "https://host.example", handle } = {}) {
       else if (m.method === "ui/notifications/initialized")
         emit({
           method: "ui/notifications/tool-result",
-          params: { _meta: { reader: { choose: true } } },
+          params: { _meta: { reader: initialSeed } },
         });
       else if (m.method === "tools/call") {
         const result = handle?.(m, emit, page);
@@ -115,7 +121,7 @@ async function app({ origin = "https://host.example", handle } = {}) {
             content: [],
             structuredContent:
               name === "reader_view"
-                ? { root: a.root ?? "/book", chapters: [] }
+                ? { root: a.root ?? "/book", bookId: "book-id", chapters: [] }
                 : name === "reader_page"
                   ? page(a.chapterId)
                   : name === "reader_updates"
@@ -130,7 +136,18 @@ async function app({ origin = "https://host.example", handle } = {}) {
   const context = vm.createContext({
     document,
     parent,
-    window: { scrollY: 0, scrollTo() {} },
+    window: {
+      scrollY: 0,
+      scrollTo(x, y) {
+        this.scrollY = y;
+      },
+      openai: {
+        widgetState,
+        setWidgetState(value) {
+          widgetState = value;
+        },
+      },
+    },
     crypto: { randomUUID },
     URL: {
       createObjectURL(blob) {
@@ -167,7 +184,7 @@ async function app({ origin = "https://host.example", handle } = {}) {
     source + ";({ initialize,launch,page,showLibrary })",
     context,
   );
-  await api.initialize();
+  if (initialize) await api.initialize();
   return {
     api,
     emit,
@@ -181,6 +198,15 @@ async function app({ origin = "https://host.example", handle } = {}) {
     events,
     get host() {
       return context.__markdownBookHost;
+    },
+    get widgetState() {
+      return widgetState;
+    },
+    set scrollTop(value) {
+      context.window.scrollY = value;
+    },
+    get scrollTop() {
+      return context.window.scrollY;
     },
     get scriptIds() {
       return vm.runInContext("[...pageScripts.keys()]", context);
@@ -479,4 +505,380 @@ test("native navigation and book switches drain durable experiment writes before
   await opening;
   assert.equal(a.document.title, "two");
   await a.close();
+});
+
+test("missing views in the watcher and search share one recovery and preserve the visible chapter", async () => {
+  let lost = false,
+    reopen;
+  const a = await app({
+    handle(m, emit) {
+      const name = m.params.name;
+      if (lost && name === "reader_view") {
+        reopen = () => {
+          lost = false;
+          emit({
+            id: m.id,
+            result: {
+              structuredContent: {
+                root: "/book",
+                bookId: "book-id",
+                chapters: [],
+              },
+            },
+          });
+        };
+        return false;
+      }
+      if (
+        lost &&
+        ["reader_updates", "reader_index", "reader_page"].includes(name)
+      )
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Reader view not found." }],
+        };
+    },
+  });
+  await a.api.launch("/book", "first");
+  await a.api.page("second");
+  a.scrollTop = 420;
+  const before = a.messages.filter(
+    (m) => m.params?.name === "reader_view",
+  ).length;
+  lost = true;
+  a.timeout(2000);
+  await flush();
+  const search = a.host.loadIndex();
+  await flush();
+  assert.equal(
+    a.messages.filter((m) => m.params?.name === "reader_view").length,
+    before + 1,
+  );
+  assert.equal(typeof reopen, "function");
+  reopen();
+  await search;
+  await flush();
+  assert.equal(a.document.title, "second");
+  assert.equal(a.scrollTop, 420);
+  assert.equal(
+    a.messages.filter((m) => m.params?.name === "reader_view").length,
+    before + 1,
+  );
+  assert.equal(a.document.querySelector('[role="alert"]'), undefined);
+  await a.close();
+});
+
+test("reconnect retries only the rejected experiment assignment and preserves it across navigation", async () => {
+  let lost = false,
+    stored = {};
+  const a = await app({
+    handle(m, emit, page) {
+      const name = m.params.name;
+      if (lost && name !== "reader_view" && name !== "close_reader_view")
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Reader view not found." }],
+        };
+      if (name === "reader_view") lost = false;
+      if (name === "save_reader_experiments")
+        stored = { ...stored, ...m.params.arguments.values };
+      if (name === "reader_page")
+        return {
+          structuredContent: {
+            ...page(m.params.arguments.chapterId),
+            experiments: { version: 1, values: stored },
+          },
+        };
+    },
+  });
+  await a.api.launch("/book", "first");
+  lost = true;
+  const value = {
+    version: 1,
+    values: {
+      experiment: { version: 1, parameters: { ratio: 7 }, replay: { step: 3 } },
+    },
+  };
+  a.host.setExperiments(value);
+  await a.api.page("second");
+  assert.equal(stored.experiment.parameters.ratio, 7);
+  assert.equal(a.host.getExperiments().values.experiment.replay.step, 3);
+  assert.equal(a.document.title, "second");
+  await a.close();
+});
+
+test("failed experiment saves remain overlaid until retry, which resumes the current chapter and scroll", async () => {
+  let failing = true;
+  const a = await app({
+    handle(m, emit, page) {
+      if (m.params.name === "save_reader_experiments" && failing)
+        return {
+          isError: true,
+          content: [{ type: "text", text: "storage unavailable" }],
+        };
+      if (m.params.name === "reader_page")
+        return {
+          structuredContent: {
+            ...page(m.params.arguments.chapterId),
+            experiments: {
+              version: 1,
+              values: { experiment: { version: 1, parameters: { ratio: 4 } } },
+            },
+          },
+        };
+    },
+  });
+  await a.api.launch("/book", "first");
+  await a.api.page("second");
+  a.host.setExperiments({
+    version: 1,
+    values: { experiment: { version: 1, parameters: { ratio: 7 } } },
+  });
+  await flush();
+  await a.api.page("third");
+  assert.equal(a.host.getExperiments().values.experiment.parameters.ratio, 7);
+  a.scrollTop = 640;
+  failing = false;
+  a.ids.get("mb-retry-reading").listeners.get("click")();
+  await flush();
+  assert.equal(a.document.title, "third");
+  assert.equal(a.scrollTop, 640);
+  assert(
+    a.messages.filter((m) => m.params?.name === "save_reader_experiments")
+      .length >= 2,
+  );
+  await a.close();
+});
+
+test("a restarted watcher cannot cancel a newer pending chapter navigation", async () => {
+  let update,
+    finishPage,
+    hold = false;
+  const a = await app({
+    handle(m, emit, page) {
+      if (hold && m.params.name === "reader_updates") {
+        update = () =>
+          emit({ id: m.id, result: { structuredContent: { cursor: 2 } } });
+        return false;
+      }
+      if (
+        hold &&
+        m.params.name === "reader_page" &&
+        m.params.arguments.chapterId === "new"
+      ) {
+        finishPage = () =>
+          emit({ id: m.id, result: { structuredContent: page("new") } });
+        return false;
+      }
+    },
+  });
+  await a.api.launch("/book", "first");
+  hold = true;
+  a.timeout(2000);
+  await flush();
+  const navigation = a.api.page("new");
+  await flush();
+  update();
+  await flush();
+  finishPage();
+  await navigation;
+  assert.equal(a.document.title, "new");
+  await a.close();
+});
+
+test("teardown during recovery cannot reopen or repaint the closed panel", async () => {
+  let lost = false,
+    late;
+  const a = await app({
+    handle(m, emit) {
+      if (lost && m.params.name === "reader_updates")
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Reader view not found." }],
+        };
+      if (lost && m.params.name === "reader_view") {
+        late = () =>
+          emit({
+            id: m.id,
+            result: { structuredContent: { root: "/book", chapters: [] } },
+          });
+        return false;
+      }
+    },
+  });
+  await a.api.launch("/book", "first");
+  lost = true;
+  a.timeout(2000);
+  await flush();
+  assert.equal(typeof late, "function");
+  await a.close();
+  late();
+  await flush();
+  assert.equal(a.document.title, "first");
+  assert.equal(a.host, undefined);
+});
+
+test("late launch seeds recover startup without negotiating the initialized host again", async () => {
+  const a = await app({
+    initialSeed: null,
+    initialize: false,
+    widgetState: { root: "/book", chapterId: "second", scrollTop: 512 },
+  });
+  const startup = a.api.initialize();
+  await flush();
+  a.timeout(25000);
+  await assert.rejects(startup, /missingSeed/);
+  const retry = a.api.initialize();
+  await flush();
+  assert.equal(
+    a.messages.filter((m) => m.method === "ui/initialize").length,
+    1,
+  );
+  a.emit({
+    method: "ui/notifications/tool-result",
+    params: { structuredContent: { ready: true, reader: { root: "/book" } } },
+  });
+  await retry;
+  await flush();
+  assert.equal(a.document.title, "second");
+  assert.equal(a.scrollTop, 512);
+  await a.close();
+});
+
+test("a late seed can resume automatically and legacy ready results remain supported", async () => {
+  const a = await app({ initialSeed: null, initialize: false });
+  const startup = a.api.initialize();
+  await flush();
+  a.timeout(25000);
+  await assert.rejects(startup);
+  a.emit({
+    method: "ui/notifications/tool-result",
+    params: {
+      structuredContent: { ready: true, root: "/book", chapterId: "first" },
+    },
+  });
+  await flush();
+  assert.equal(a.document.title, "first");
+  assert.equal(
+    a.messages.filter((m) => m.method === "ui/initialize").length,
+    1,
+  );
+  await a.close();
+});
+
+test("a pending experiment snapshot survives panel recreation and is saved before reading", async () => {
+  let stored = {};
+  const value = { version: 1, parameters: { ratio: 7 } };
+  const a = await app({
+    initialSeed: { root: "/book", chapterId: "first" },
+    widgetState: {
+      pendingExperiments: {
+        "/book": { bookId: "book-id", values: { experiment: value } },
+      },
+    },
+    handle(m, emit, page) {
+      if (m.params.name === "save_reader_experiments")
+        stored = { ...stored, ...m.params.arguments.values };
+      if (m.params.name === "reader_page")
+        return {
+          structuredContent: {
+            ...page("first"),
+            experiments: { version: 1, values: stored },
+          },
+        };
+    },
+  });
+  await flush();
+  assert.equal(stored.experiment.parameters.ratio, 7);
+  assert.equal(a.host.getExperiments().values.experiment.parameters.ratio, 7);
+  assert.equal(Object.keys(a.widgetState.pendingExperiments).length, 0);
+  await a.close();
+});
+
+test("switching books fences an older reconnect response", async () => {
+  let lost = false,
+    late;
+  const a = await app({
+    handle(m, emit) {
+      if (
+        m.params.name === "reader_view" &&
+        m.params.arguments.root === "/other"
+      )
+        lost = false;
+      if (lost && m.params.name === "reader_updates")
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Reader view not found." }],
+        };
+      if (
+        lost &&
+        m.params.name === "reader_view" &&
+        m.params.arguments.root === "/book"
+      ) {
+        late = () =>
+          emit({
+            id: m.id,
+            result: {
+              structuredContent: {
+                root: "/book",
+                bookId: "book-id",
+                chapters: [],
+              },
+            },
+          });
+        return false;
+      }
+    },
+  });
+  await a.api.launch("/book", "first");
+  lost = true;
+  a.timeout(2000);
+  await flush();
+  assert.equal(typeof late, "function");
+  await a.api.launch("/other", "other");
+  late();
+  await flush();
+  assert.equal(a.document.title, "other");
+  assert.equal(a.host.root, "/other");
+  assert.equal(a.document.querySelector('[role="alert"]'), undefined);
+  await a.close();
+});
+
+test("unchanged recovery retains the mounted experiment, its host and reading position", async () => {
+  let lost = false;
+  const a = await app({
+    handle(m, emit, page) {
+      const name = m.params.name;
+      if (name === "reader_view") lost = false;
+      if (name === "reader_page")
+        return {
+          content: [],
+          structuredContent: {
+            ...page(m.params.arguments.chapterId),
+            digest: "same-inputs",
+            javascriptId: "same-script",
+          },
+        };
+      if (lost && name === "reader_updates")
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Reader view not found." }],
+        };
+    },
+  });
+  await a.api.launch("/book", "second");
+  const host = a.host;
+  const mounts = a.blobs.length;
+  a.scrollTop = 420;
+  lost = true;
+  a.timeout(2000);
+  await flush();
+  assert.equal(a.host, host);
+  assert.equal(a.blobs.length, mounts);
+  assert.equal(a.scrollTop, 420);
+  assert.deepEqual(await host.loadIndex(), {});
+  assert.equal(
+    a.messages.filter((m) => m.params?.name === "reader_view").length,
+    2,
+  );
 });
