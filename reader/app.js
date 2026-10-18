@@ -389,6 +389,7 @@ async function page(
     renderedPage?.book === book &&
     renderedPage.chapterId === chapterId &&
     renderedPage.digest === result.digest &&
+    styleId === result.stylesheetId &&
     renderedPage.javascriptId === result.javascriptId
   ) {
     cursor = result.cursor;
