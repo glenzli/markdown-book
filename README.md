@@ -12,7 +12,7 @@
 
 当前工具版本 **0.7.5**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。书稿新增章节后可直接从更新的目录进入；切章保留目录滚动位置，并让当前章节保持可见。切章时保留现有目录节点，只更新正文和当前章节标记；“阅读设置”显示实际面板版本。每个发行版使用独立的原生界面资源地址，旧资源地址仍可读取。
 
-#侧栏重连会重建当前书籍的失效会话，并保留章节、滚动位置与实验参数；后台刷新不会
+侧栏重连会重建当前书籍的失效会话，并保留章节、滚动位置与实验参数；后台刷新不会
 覆盖正在进行的章节切换。保存未获确认的实验设置会保留，重试后继续写入本地状态。
 打开信息也随标准工具结果传递；信息迟到后可继续打开，无需重复初始化宿主连接。
 
@@ -85,7 +85,7 @@ npm run plugin:sync -- /absolute/path/to/marketplace
 
 `plugin:dist` 在 `dist/markdown-book` 生成完整安装包和 `release.json`，记录源提交、源工作树是否有修改，以及每个文件的 SHA-256 和可执行权限。构建时优先使用本机原生 esbuild；不具备匹配二进制的平台自动使用同版本 WASM，避免复制 node_modules 后的平台冲突。WASM 构建更慢。
 
-`plugin:sync` 校验包后只替换目标仓库的 `plugins/markdown-book` 并登记目录项，不提交 Git、不 push、不部署。完整流程见 [插件发布](docs/releasing.md)。本地开发也可运行 `npm run plugin:bundle`，然后注册本仓库并安装 `markdown-book@markdown-book-local`。
+`plugin:sync` 校验包后只替换目标仓库的 `plugins/markdown-book` 并登记目录项，不提交 Git、不 push、不部署。完整流程见 [插件发布](docs/releasing.md)。维护者的本地开发统一使用 `glenzli-local`，其中的 `markdown-book` 条目指向本仓库生成的 `plugins/markdown-book`；运行 `npm run plugin:bundle` 后安装 `markdown-book@glenzli-local`。公开安装与更新使用上方的 `glenzli/marketplace`。
 
 架构入口：`src/manifest.js` / `src/markdown.js` 管理书稿约束与解析；`src/build.js` / `src/template.js` 管理产物；`reader/preferences-data.js` / `reader/preferences.js` 管理语言、主题与偏好生命周期；`reader/reader.js` 管理页面和组件；`src/mcp.js` / `src/reader-gateway.js` / `reader/app.js` 管理原生面板。学科模型由书稿仓库验证，check 不证明数学或科学结论正确。
 
@@ -103,7 +103,7 @@ The reader uses neutral grayscale surfaces, with automatic or manual light and d
 
 Tool version **0.7.5**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes. Newly added chapters open from the updated directory without reopening the book. Chapter changes preserve the directory scroll position and keep the current entry visible. Chapter changes retain the live directory node while updating the text and current entry. Reading settings show the loaded panel version. Each release has its own native UI resource address; the legacy address remains readable.
 
-#Sidebar recovery recreates a missing view for the current book while preserving its chapter,
+Sidebar recovery recreates a missing view for the current book while preserving its chapter,
 scroll position, and experiment parameters. Background updates cannot supersede newer navigation.
 Unconfirmed experiment assignments remain available for retry. Launch context also travels in
 standard tool results, and late context can resume startup without reinitializing the host bridge.
@@ -177,7 +177,7 @@ npm run plugin:sync -- /absolute/path/to/marketplace
 
 `plugin:dist` creates a complete package at `dist/markdown-book`. Its `release.json` records the source revision, dirty-source flag, and every file's SHA-256 and executable mode. Builds prefer native esbuild; platforms without a matching binary use the same-version WASM backend. WASM is slower, but avoids platform conflicts when distributing dependencies.
 
-`plugin:sync` verifies the package, replaces only `plugins/markdown-book` in the target marketplace, and registers its catalog entry. It does not commit, push, or deploy. See [plugin releases](docs/releasing.md). For local development, run `npm run plugin:bundle`, register this repository as a marketplace, and install `markdown-book@markdown-book-local`.
+`plugin:sync` verifies the package, replaces only `plugins/markdown-book` in the target marketplace, and registers its catalog entry. It does not commit, push, or deploy. See [plugin releases](docs/releasing.md). Maintainer development uses the shared `glenzli-local` catalog, whose `markdown-book` entry points to this repository’s generated `plugins/markdown-book` directory. Run `npm run plugin:bundle`, then install `markdown-book@glenzli-local`. Public installs and updates use `glenzli/marketplace` as shown above.
 
 Source ownership: `src/manifest.js` / `src/markdown.js` validate and parse books; `src/build.js` / `src/template.js` build output; `reader/preferences-data.js` / `reader/preferences.js` own language, theme, and preference lifecycle; `reader/reader.js` owns pages and components; `src/mcp.js` / `src/reader-gateway.js` / `reader/app.js` own native panels. Book repositories validate subject models; check does not establish mathematical or scientific correctness.
 

@@ -1,8 +1,8 @@
 # Plugin release / 插件发布
 
-The source repository owns code, specs, and skills. The public `glenzli/marketplace` repository owns validated install snapshots. A local development marketplace is independent of the public catalog. The MIT license covers the tool and docs, not the books it opens.
+The source repository owns code, specs, and skills. The public `glenzli/marketplace` repository owns validated install snapshots. Maintainers use the shared `glenzli-local` development catalog; public installs use `markdown-book@glenzli-marketplace` from `glenzli/marketplace`. The MIT license covers the tool and docs, not the books it opens.
 
-源码仓库维护实现、规范和 skill；`glenzli/marketplace` 维护经过验证的安装快照。本地开发来源与公开 marketplace 独立。
+源码仓库维护实现、规范和 skill；`glenzli/marketplace` 维护经过验证的安装快照。维护者本地开发统一使用 `glenzli-local`，公开安装统一使用 `glenzli/marketplace`。
 
 1. Align package.json, package-lock.json, toolVersion, appInfo, plugin manifest, and README versions. Keep formatVersion independent.
 2. Run `npm run release:check`. Validate language/theme changes in a live reader and a real book at the intended static base.
@@ -20,13 +20,34 @@ codex plugin marketplace add glenzli/marketplace --ref main
 codex plugin add markdown-book@glenzli-marketplace --json
 ```
 
-Local development:
+Maintainer local development:
+
+The shared local catalog is named `glenzli-local`. Register a `markdown-book` entry
+with the relative source `./plugins/markdown-book`; that path points to this source
+repository's generated `plugins/markdown-book` directory, usually through a symlink.
+Keep this machine-local catalog outside the public release repository.
 
 ```bash
 npm run plugin:bundle
-codex plugin marketplace add /absolute/path/to/markdown-book
-codex plugin add markdown-book@markdown-book-local --json
+codex plugin marketplace add /absolute/path/to/glenzli-local
+codex plugin add markdown-book@glenzli-local --json
 ```
+
+本地目录项指向源码仓库打包后的插件目录；公开 marketplace 保存可核验的发行快照。
+修改源码后仍需重新打包、安装，已有面板的运行版本另行核对。
+
+For an existing `markdown-book-local` installation, install and verify
+`markdown-book@glenzli-local` first, then remove the old plugin registration and
+standalone source:
+
+```bash
+codex plugin remove markdown-book@markdown-book-local --json
+codex plugin marketplace remove markdown-book-local --json
+```
+
+The source repository's standalone catalog remains available for older development
+setups; it is no longer the default maintainer installation route. Install one
+Markdown Book source per host to keep a single sidebar entry.
 
 Before replacing an installed version, preserve any cache still used by a live host process if the installer prunes it. Do not overwrite a running old version with new bytes. After installation, compare distributed files and modes with the package. Reload the plugin or restart the host to use new native code; an installed version number alone does not prove the existing panel updated.
 
