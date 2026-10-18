@@ -950,3 +950,110 @@ test("native directory layout is restored before the asynchronous chapter module
   );
   await a.close();
 });
+
+test("chapter changes keep the live directory node and links in place", async () => {
+  const a = await app();
+  await a.api.launch("/book", "first");
+  const links = (active) =>
+    ["first", "second"].map((id) => ({
+      textContent: id,
+      attributes: {
+        href: `/${id}/`,
+        ...(id === active ? { "aria-current": "page" } : {}),
+      },
+      getAttribute(key) {
+        return this.attributes[key] ?? null;
+      },
+      setAttribute(key, value) {
+        this.attributes[key] = value;
+      },
+      removeAttribute(key) {
+        delete this.attributes[key];
+      },
+    }));
+  const oldLinks = links("first"),
+    nextLinks = links("second");
+  const current = {},
+    next = {};
+  for (const selector of [
+    ".reader-layout",
+    ".topbar",
+    "#main",
+    ".on-this-page",
+    "#mb-state",
+    ".book-name",
+    ".sidebar-label",
+    ".sidebar-footer",
+  ]) {
+    current[selector] = {
+      append() {},
+      replaceWith(node) {
+        current[selector] = node;
+      },
+    };
+    next[selector] = {
+      append() {},
+      replaceWith(node) {
+        current[selector] = node;
+      },
+    };
+  }
+  let currentLinks = oldLinks;
+  const directory = {
+    querySelectorAll: () => currentLinks,
+    replaceChildren: (...nodes) => {
+      currentLinks = nodes;
+    },
+  };
+  const nextDirectory = { querySelectorAll: () => nextLinks };
+  const sidebar = {
+    scrollTop: 780,
+    querySelector: (selector) =>
+      selector === "#book-chapters" ? directory : current[selector],
+  };
+  const nextSidebar = {
+    querySelector: (selector) =>
+      selector === "#book-chapters" ? nextDirectory : next[selector],
+  };
+  current["#book-sidebar"] = sidebar;
+  next["#book-sidebar"] = nextSidebar;
+  a.ids.set("book-sidebar", sidebar);
+  const query = a.document.querySelector.bind(a.document);
+  a.document.querySelector = (selector) => current[selector] ?? query(selector);
+  const create = a.document.createElement;
+  a.document.createElement = (name) =>
+    name === "template"
+      ? { content: { querySelector: (selector) => next[selector] ?? null } }
+      : create(name);
+  let bodyReplacements = 0;
+  Object.defineProperty(a.document.body, "innerHTML", {
+    set() {
+      bodyReplacements++;
+      sidebar.scrollTop = 0;
+    },
+  });
+  await a.api.page("second");
+  assert.equal(bodyReplacements, 0);
+  assert.equal(a.ids.get("book-sidebar"), sidebar);
+  assert.equal(sidebar.scrollTop, 780);
+  assert.equal(directory.querySelectorAll()[1], oldLinks[1]);
+  assert.equal(oldLinks[0].getAttribute("aria-current"), null);
+  assert.equal(oldLinks[1].getAttribute("aria-current"), "page");
+  assert.equal(current["#main"], next["#main"]);
+  const third = {
+    ...nextLinks[1],
+    textContent: "third",
+    attributes: { href: "/third/", "aria-current": "page" },
+  };
+  nextLinks[1].removeAttribute("aria-current");
+  nextDirectory.childNodes = [...nextLinks, third];
+  nextDirectory.querySelectorAll = () => nextDirectory.childNodes;
+  await a.api.page("third");
+  assert.equal(bodyReplacements, 0);
+  assert.equal(sidebar.scrollTop, 780);
+  assert.equal(directory.querySelectorAll().length, 3);
+  assert.equal(directory.querySelectorAll()[2].getAttribute("href"), "/third/");
+  await a.api.launch("/another-book", "first");
+  assert.equal(bodyReplacements, 1);
+  await a.close();
+});

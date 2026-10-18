@@ -10,7 +10,7 @@
 
 阅读界面采用黑白灰底色，亮暗模式支持自动跟随或手动选择。
 
-当前工具版本 **0.7.4**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。书稿新增章节后可直接从更新的目录进入；切章保留目录滚动位置，并让当前章节保持可见。目录在新正文首次绘制前恢复，章节脚本加载时也不会先跳回顶部。
+当前工具版本 **0.7.5**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。书稿新增章节后可直接从更新的目录进入；切章保留目录滚动位置，并让当前章节保持可见。切章时保留现有目录节点，只更新正文和当前章节标记；“阅读设置”显示实际面板版本。每个发行版使用独立的原生界面资源地址，旧资源地址仍可读取。
 
 #侧栏重连会重建当前书籍的失效会话，并保留章节、滚动位置与实验参数；后台刷新不会
 覆盖正在进行的章节切换。保存未获确认的实验设置会保留，重试后继续写入本地状态。
@@ -101,7 +101,7 @@ Markdown manuscripts, browser interactives, and one reader for local previews, C
 
 The reader uses neutral grayscale surfaces, with automatic or manual light and dark appearance.
 
-Tool version **0.7.4**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes. Newly added chapters open from the updated directory without reopening the book. Chapter changes preserve the directory scroll position and keep the current entry visible. The native shell restores navigation before the first paint, without waiting for the chapter module.
+Tool version **0.7.5**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes. Newly added chapters open from the updated directory without reopening the book. Chapter changes preserve the directory scroll position and keep the current entry visible. Chapter changes retain the live directory node while updating the text and current entry. Reading settings show the loaded panel version. Each release has its own native UI resource address; the legacy address remains readable.
 
 #Sidebar recovery recreates a missing view for the current book while preserving its chapter,
 scroll position, and experiment parameters. Background updates cannot supersede newer navigation.

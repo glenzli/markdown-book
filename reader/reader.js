@@ -19,7 +19,10 @@ export function startReader(registry, host) {
     : createBrowserPreferences();
   const preferences = host?.preferences ?? preferenceSession.preferences;
   const t = (key, values) => preferences.t(key, values);
-  mountPreferences(preferences, { signal: controller.signal });
+  mountPreferences(preferences, {
+    signal: controller.signal,
+    appVersion: host?.appVersion,
+  });
   preferences.subscribe(() => translateDom(preferences), {
     signal: controller.signal,
   });

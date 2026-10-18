@@ -6,6 +6,7 @@ import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { ReaderGateway, discoverBooks } from "../src/reader-gateway.js";
+import { toolVersion } from "../src/build.js";
 import { fixture, waitFor } from "./fixtures.js";
 
 test("native entrypoints share one self-contained MCP App resource and isolate book views", async (t) => {
@@ -41,7 +42,10 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
     ["open_reader", "thread"],
   ]) {
     const tool = tools.find((tool) => tool.name === name);
-    assert.equal(tool._meta.ui.resourceUri, "ui://markdown-book/reader.html");
+    assert.equal(
+      tool._meta.ui.resourceUri,
+      `ui://markdown-book/reader-${toolVersion}.html`,
+    );
     assert.deepEqual(tool._meta["openai/ui"].entrypoints, [{ type }]);
   }
   for (const name of [
@@ -62,6 +66,15 @@ test("native entrypoints share one self-contained MCP App resource and isolate b
   const resource = await client.readResource({
     uri: "ui://markdown-book/reader.html",
   });
+  const currentResource = await client.readResource({
+    uri: `ui://markdown-book/reader-${toolVersion}.html`,
+  });
+  assert.equal(currentResource.contents[0].text, resource.contents[0].text);
+  assert.ok(
+    currentResource.contents[0].text.includes(
+      `data-mb-app-version="${toolVersion}"`,
+    ),
+  );
   assert.equal(resource.contents[0].mimeType, "text/html;profile=mcp-app");
   assert.match(resource.contents[0].text, /data-mb-app/);
   assert.match(resource.contents[0].text, /ui\/initialize/);

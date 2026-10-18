@@ -78,7 +78,11 @@ export function createBrowserPreferences(options = {}) {
 }
 export function mountPreferences(
   preferences,
-  { signal, button = document.querySelector(".preferences-toggle") } = {},
+  {
+    signal,
+    appVersion,
+    button = document.querySelector(".preferences-toggle"),
+  } = {},
 ) {
   if (!button) return;
   button.innerHTML = preferenceIcon;
@@ -86,6 +90,12 @@ export function mountPreferences(
   dialog.className = "mb-preferences";
   dialog.setAttribute("aria-labelledby", "mb-preferences-title");
   dialog.innerHTML = `<div class="mb-preferences-heading"><h2 id="mb-preferences-title" data-mb-label="preferences"></h2><button type="button" class="mb-preferences-close" data-mb-label-aria-label="closePreferences">×</button></div><label><span data-mb-label="language"></span><select class="mb-language" data-mb-label-aria-label="language"><option value="auto" data-mb-label="automatic"></option><option value="zh-CN">中文</option><option value="en">English</option></select></label><label><span data-mb-label="theme"></span><select class="mb-theme" data-mb-label-aria-label="theme"><option value="auto" data-mb-label="automatic"></option><option value="light" data-mb-label="light"></option><option value="dark" data-mb-label="dark"></option></select></label><p data-mb-label="preferencesNote"></p>`;
+  if (appVersion) {
+    const version = document.createElement("p");
+    version.className = "mb-reader-version";
+    version.textContent = `Markdown Book ${appVersion}`;
+    dialog.append(version);
+  }
   document.body.append(dialog);
   const language = dialog.querySelector(".mb-language"),
     theme = dialog.querySelector(".mb-theme");

@@ -7,7 +7,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { checkBook, toolVersion } from "./build.js";
 import { ReaderGateway, discoverBooks } from "./reader-gateway.js";
-import { readerAppHtml, readerResourceUri } from "./reader-app.js";
+import {
+  readerAppHtml,
+  readerResourceUri,
+  legacyReaderResourceUri,
+} from "./reader-app.js";
 
 export function createBookMcp(options = {}) {
   const server = new McpServer({
@@ -62,35 +66,42 @@ export function createBookMcp(options = {}) {
     const roots = await currentRoots();
     return roots.length === 1 ? roots[0] : undefined;
   }
-  server.registerResource(
-    "markdown-book-reader",
-    readerResourceUri,
-    {
-      title: "Markdown Book",
-      mimeType: "text/html;profile=mcp-app",
-      description:
-        "Shared Markdown Book reader for the global sidebar and conversation panel.",
-    },
-    async () => ({
-      contents: [
-        {
-          uri: readerResourceUri,
-          mimeType: "text/html;profile=mcp-app",
-          text: await readerAppHtml(),
-          _meta: {
-            ui: {
-              csp: { connectDomains: [], resourceDomains: ["data:", "blob:"] },
-              prefersBorder: false,
-            },
-            "openai/ui": {
-              availableDisplayModes: ["inline", "fullscreen"],
-              preferredDisplayMode: "fullscreen",
+  for (const [name, uri] of [
+    ["markdown-book-reader", readerResourceUri],
+    ["markdown-book-reader-legacy", legacyReaderResourceUri],
+  ])
+    server.registerResource(
+      name,
+      uri,
+      {
+        title: "Markdown Book",
+        mimeType: "text/html;profile=mcp-app",
+        description:
+          "Shared Markdown Book reader for the global sidebar and conversation panel.",
+      },
+      async () => ({
+        contents: [
+          {
+            uri,
+            mimeType: "text/html;profile=mcp-app",
+            text: await readerAppHtml(),
+            _meta: {
+              ui: {
+                csp: {
+                  connectDomains: [],
+                  resourceDomains: ["data:", "blob:"],
+                },
+                prefersBorder: false,
+              },
+              "openai/ui": {
+                availableDisplayModes: ["inline", "fullscreen"],
+                preferredDisplayMode: "fullscreen",
+              },
             },
           },
-        },
-      ],
-    }),
-  );
+        ],
+      }),
+    );
   for (const entrypoint of ["global", "thread"]) {
     server.registerTool(
       entrypoint === "global" ? "open_workspace" : "open_reader",
