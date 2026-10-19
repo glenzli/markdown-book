@@ -200,3 +200,72 @@ export function startNavigation({
     once: true,
   });
 }
+
+let anchorTarget, anchorTimer;
+function clearAnchorFeedback() {
+  clearTimeout(anchorTimer);
+  anchorTarget?.classList.remove("mb-anchor-target");
+  anchorTarget = null;
+}
+
+/** Shared landing behavior for browser fragments and the native chapter shell. */
+export function revealAnchor(anchor) {
+  let id;
+  try {
+    id = decodeURIComponent(anchor.replace(/^#/, ""));
+  } catch {
+    return;
+  }
+  const target = document.getElementById(id);
+  if (!target) return;
+  clearAnchorFeedback();
+  for (let node = target; node; node = node.parentElement)
+    if (node.tagName === "DETAILS") node.open = true;
+  target.scrollIntoView({ block: "start", behavior: "instant" });
+  if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+  target.focus({ preventScroll: true });
+  target.classList.add("mb-anchor-target");
+  anchorTarget = target;
+  anchorTimer = setTimeout(clearAnchorFeedback, 1800);
+}
+
+export function startAnchorNavigation({ signal, host }) {
+  signal.addEventListener("abort", clearAnchorFeedback, { once: true });
+  if (host) return; // The native shell owns same-page and cross-chapter routing.
+  const land = () => {
+    if (window.location.hash) revealAnchor(window.location.hash);
+  };
+  window.addEventListener("hashchange", land, { signal });
+  document.addEventListener(
+    "click",
+    (event) => {
+      const link = event.target.closest?.(".mb-exercise-links a[href]");
+      if (
+        !link ||
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey ||
+        link.target === "_blank" ||
+        link.hasAttribute("download")
+      )
+        return;
+      const url = new URL(link.href, window.location.href);
+      if (
+        url.origin !== window.location.origin ||
+        url.pathname !== window.location.pathname ||
+        url.search !== window.location.search ||
+        !url.hash
+      )
+        return;
+      event.preventDefault();
+      if (window.location.hash !== url.hash)
+        window.history.pushState(null, "", url.hash);
+      revealAnchor(url.hash);
+    },
+    { signal },
+  );
+  land();
+}

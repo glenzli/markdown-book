@@ -411,6 +411,12 @@ export const messages = {
     "zh-CN": "组件清理函数无效",
     en: "The component returned an invalid cleanup function.",
   },
+  viewSolution: { "zh-CN": "查看解答", en: "View solution" },
+  viewNumberedSolution: {
+    "zh-CN": "查看解答 {number}",
+    en: "View solution {number}",
+  },
+  backToExercise: { "zh-CN": "返回习题", en: "Back to exercise" },
   staticImage: {
     "zh-CN": "查看静态图",
     en: "Show static figure",
@@ -439,7 +445,12 @@ export function translateDom(preferences, root = document) {
   for (const node of root.querySelectorAll(
     "[data-mb-label], [data-mb-label-title], [data-mb-label-aria-label], [data-mb-label-placeholder]",
   )) {
-    if (node.closest(".prose") && !node.closest(".book-intro")) continue;
+    if (
+      node.closest(".prose") &&
+      !node.closest(".book-intro") &&
+      !node.closest("[data-mb-generated-links]")
+    )
+      continue;
     const values = JSON.parse(node.dataset.mbValues ?? "{}");
     if (node.dataset.mbLabel)
       node.textContent = preferences.t(node.dataset.mbLabel, values);

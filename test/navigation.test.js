@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { startNavigation, prepareNavigation } from "../reader/navigation.js";
+import {
+  startNavigation,
+  prepareNavigation,
+  startAnchorNavigation,
+  revealAnchor,
+} from "../reader/navigation.js";
 
 function fixture(
   t,
@@ -250,4 +255,57 @@ test("first-paint restoration reveals the selected chapter but resets a differen
   });
   assert.equal(a.sidebar.scrollTop, 650);
   assert.equal(a.toc.scrollTop, 0);
+});
+
+test("anchor landing reveals folded content, focuses the target, replaces feedback and clears on page exit", (t) => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const details = { tagName: "DETAILS", open: false, parentElement: null };
+  const target = () => {
+    const classes = new Set();
+    const attributes = new Map();
+    return {
+      parentElement: details,
+      classList: {
+        add: (v) => classes.add(v),
+        remove: (v) => classes.delete(v),
+      },
+      classes,
+      hasAttribute: (k) => attributes.has(k),
+      setAttribute: (k, v) => attributes.set(k, v),
+      scrollIntoView(options) {
+        this.scroll = options;
+      },
+      focus(options) {
+        this.focused = options;
+      },
+    };
+  };
+  const question = target(),
+    answer = target();
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      getElementById: (id) =>
+        ({ "mb-exercise-问题": question, "mb-solution-answer": answer })[id],
+    },
+  });
+  const controller = new AbortController();
+  startAnchorNavigation({ signal: controller.signal, host: {} });
+  t.after(() => {
+    controller.abort();
+    if (previous) Object.defineProperty(globalThis, "document", previous);
+    else delete globalThis.document;
+  });
+  revealAnchor("#mb-exercise-%E9%97%AE%E9%A2%98");
+  assert.equal(details.open, true);
+  assert.equal(question.focused.preventScroll, true);
+  assert.equal(question.scroll.block, "start");
+  assert.equal(question.classes.has("mb-anchor-target"), true);
+  revealAnchor("mb-solution-answer");
+  assert.equal(question.classes.has("mb-anchor-target"), false);
+  assert.equal(answer.classes.has("mb-anchor-target"), true);
+  assert.doesNotThrow(() => revealAnchor("%invalid"));
+  assert.doesNotThrow(() => revealAnchor("missing"));
+  controller.abort();
+  assert.equal(answer.classes.has("mb-anchor-target"), false);
 });

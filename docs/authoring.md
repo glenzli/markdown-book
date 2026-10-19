@@ -74,6 +74,10 @@ check 只验证格式、资源、公式语法、锚点和模块接口，不运�
 
 规范：[格式 v1](format-v1.md)、[组件接口](../src/component.d.ts)、[Three.js](three-components.md)。需要 AI 协助时，使用插件的 `write-markdown-book` skill；它会保留作者已有结构并验证实际文件。
 
+习题与答案可用 `data-mb-exercise`、`data-mb-solution` 和 `data-mb-for` 显式关联，
+阅读器与静态网站会生成双向链接。保持 id 稳定，不依赖标题或题号自动配对。
+完整示例见[习题与解答](format-v1.md#习题与解答)。
+
 ## English
 
 Choose a book directory, stable id, title, and license. Existing manuscripts can keep their directory structure: register chapters in reading order and preserve links and anchors. The MIT tool license does not choose a license for your book.
@@ -87,3 +91,5 @@ Run `markdown-book check /path/to/book`, inspect the actual behavior in a native
 Check validates format, resources, formula syntax, anchors, and module contracts; it does not execute components or prove the model correct. Exercise controls, repeated mounts, chapter exit, and static fallback without JavaScript/WebGL. Clean up timers, animation frames, observers, and GPU resources. Prefer signal-bound event listeners.
 
 See [format v1](format-v1.en.md), [component types](../src/component.d.ts), and [Three.js](three-components.md). The plugin's `write-markdown-book` skill helps an AI edit actual files, preserve the author's organization, and validate the result.
+
+Use explicit `data-mb-exercise`, `data-mb-solution`, and `data-mb-for` containers for bidirectional question/answer links. Keep ids stable rather than inferring relationships from titles or numbers. See [exercises and solutions](format-v1.en.md#exercises-and-solutions).

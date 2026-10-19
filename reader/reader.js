@@ -4,7 +4,7 @@ import {
   mountPreferences,
 } from "./preferences.js";
 import { translateDom } from "./i18n.js";
-import { startNavigation } from "./navigation.js";
+import { startNavigation, startAnchorNavigation } from "./navigation.js";
 import { startSearch } from "./search.js";
 import { startReferences } from "./references.js";
 import { createExperiments } from "./experiments.js";
@@ -36,6 +36,7 @@ export function startReader(registry, host) {
     preferences,
     state,
   });
+  startAnchorNavigation({ signal: controller.signal, host });
   startSearch({ state, signal: controller.signal, host, preferences });
   const experimentKey = [
     "markdown-book:experiments",

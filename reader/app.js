@@ -1,8 +1,8 @@
 import { createBrowserPreferences } from "./preferences.js";
-import { prepareNavigation } from "./navigation.js";
+import { prepareNavigation, revealAnchor } from "./navigation.js";
 import { renderLibrary } from "./library.js";
 import { canDraftDiscussion, discussionRequest } from "./reference-data.js";
-const appInfo = { name: "markdown-book", version: "0.7.5" };
+const appInfo = { name: "markdown-book", version: "0.8.0" };
 const appMark = document.querySelector(".mb-app-mark")?.outerHTML ?? "";
 // MCP Apps host bridge. Navigation stays inside this panel, including opaque origins.
 const pending = new Map();
@@ -583,8 +583,7 @@ async function page(
   script.src = moduleUrl;
   script.onerror = () => showError(new Error(t("scriptUnavailable")));
   document.head.append(script);
-  if (anchor)
-    document.getElementById(decodeURIComponent(anchor))?.scrollIntoView();
+  if (anchor) revealAnchor(anchor);
   else window.scrollTo(0, scrollTop);
   renderedPageGeneration = generation;
   persist();
@@ -714,9 +713,7 @@ document.addEventListener(
     const href = link.getAttribute("href");
     if (href.startsWith("#")) {
       event.preventDefault();
-      document
-        .getElementById(decodeURIComponent(href.slice(1)))
-        ?.scrollIntoView();
+      revealAnchor(href.slice(1));
       return;
     }
     if (href.startsWith("/")) {

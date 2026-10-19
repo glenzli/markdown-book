@@ -168,6 +168,7 @@ async function app({
     },
     Blob,
     Event,
+    revealAnchor: (anchor) => events.push(`anchor:${anchor}`),
     prepareNavigation: (options) => {
       prepared.push(options);
       events.push("prepare-navigation");
@@ -1056,4 +1057,13 @@ test("chapter changes keep the live directory node and links in place", async ()
   await a.api.launch("/another-book", "first");
   assert.equal(bodyReplacements, 1);
   await a.close();
+});
+
+test("native answer routes pass the exact fragment to shared landing behavior", async () => {
+  const a = await app();
+  await a.api.launch("/book", "first", 0);
+  await a.api.page("second", "mb-solution-answer-one");
+  assert.ok(a.events.includes("anchor:mb-solution-answer-one"));
+  await a.api.page("first", "mb-exercise-question-one");
+  assert.ok(a.events.includes("anchor:mb-exercise-question-one"));
 });

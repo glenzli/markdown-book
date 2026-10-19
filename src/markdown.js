@@ -14,11 +14,22 @@ import GithubSlugger from "github-slugger";
 import { VFile } from "vfile";
 import { projectFile } from "./manifest.js";
 import { collectReadingEntries } from "./reading-index.js";
+import {
+  collectExercises,
+  connectExercises,
+  validateExerciseMarkup,
+} from "./exercises.js";
 
 const schema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
+    "*": [
+      ...(defaultSchema.attributes["*"] ?? []),
+      "dataMbExercise",
+      "dataMbSolution",
+      "dataMbFor",
+    ],
     div: [...(defaultSchema.attributes.div ?? []), "dataMbComponent"],
     code: [
       ...(defaultSchema.attributes.code ?? []),
@@ -32,7 +43,7 @@ const textOf = (node) =>
     : (node.children ?? []).map(textOf).join("");
 const external = (url) => /^(?:https?:|mailto:|tel:|#)/i.test(url);
 
-export async function renderChapter(book, chapter, base = "/") {
+async function parseChapter(book, chapter, base) {
   const source = await readFile(
     await projectFile(book.root, chapter.file),
     "utf8",
@@ -45,7 +56,7 @@ export async function renderChapter(book, chapter, base = "/") {
   const issues = [];
   const slugger = new GithubSlugger();
   let title = chapter.title;
-  let readingEntries;
+  let readingEntries, exerciseBlocks;
   function collect() {
     return (tree) => {
       visit(tree, "element", (node) => {
@@ -81,6 +92,7 @@ export async function renderChapter(book, chapter, base = "/") {
           if (typeof value === "string") links.push({ node, property, value });
         }
       });
+      exerciseBlocks = collectExercises(tree, chapter, issues);
       readingEntries = collectReadingEntries(tree, { ...chapter, title });
     };
   }
@@ -91,6 +103,7 @@ export async function renderChapter(book, chapter, base = "/") {
     .use(remarkMath)
     .use(remarkRehype, { allowDangerousHtml: true })
     .use(rehypeRaw)
+    .use(() => (tree) => validateExerciseMarkup(tree, issues))
     .use(rehypeSanitize, schema)
     .use(collect)
     .use(rehypeKatex, { throwOnError: true, strict: "error", trust: false });
@@ -173,11 +186,9 @@ export async function renderChapter(book, chapter, base = "/") {
     throw new Error(
       `${chapter.file}:\n${issues.map((issue) => `  ${issue}`).join("\n")}`,
     );
-  const html = unified().use(rehypeStringify).stringify(tree);
   return {
     ...chapter,
     title: title ?? chapter.id,
-    html,
     headings,
     anchors: [...anchors],
     references,
@@ -185,5 +196,19 @@ export async function renderChapter(book, chapter, base = "/") {
     assets: [...assets.values()],
     source,
     readingEntries,
+    tree,
+    exerciseBlocks,
   };
+}
+
+export async function renderChapters(book, base = "/") {
+  const chapters = [];
+  for (const chapter of book.manifest.chapters)
+    chapters.push(await parseChapter(book, chapter, base));
+  connectExercises(chapters, base, book.manifest.language);
+  return chapters.map(({ tree, exerciseBlocks, ...chapter }) => ({
+    ...chapter,
+    html: unified().use(rehypeStringify).stringify(tree),
+    exercises: exerciseBlocks.map(({ node, ...entry }) => entry),
+  }));
 }

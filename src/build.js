@@ -16,20 +16,18 @@ import {
 } from "node:fs/promises";
 import { build as bundle } from "./bundler.js";
 import { loadBook, inside, normalizeBase } from "./manifest.js";
-import { renderChapter } from "./markdown.js";
+import { renderChapters } from "./markdown.js";
 import { renderPage } from "./template.js";
 
 const toolRoot = fileURLToPath(new URL("../", import.meta.url));
 const resolveDependency = createRequire(import.meta.url).resolve;
-export const toolVersion = "0.7.5";
+export const toolVersion = "0.8.0";
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 
 export async function checkBook(input = ".", options = {}) {
   const book = await loadBook(input);
   const base = normalizeBase(options.base ?? "/");
-  const chapters = [];
-  for (const chapter of book.manifest.chapters)
-    chapters.push(await renderChapter(book, chapter, base));
+  const chapters = await renderChapters(book, base);
   for (const chapter of chapters)
     for (const reference of chapter.references) {
       if (
@@ -175,6 +173,7 @@ export async function checkBook(input = ".", options = {}) {
       "src/build.js",
       "src/manifest.js",
       "src/markdown.js",
+      "src/exercises.js",
       "src/reading-index.js",
       "src/template.js",
       "src/brand.js",

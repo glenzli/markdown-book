@@ -52,6 +52,40 @@ Chapter URLs use stable ids, not titles or positions. Chapter order follows the 
 - Embedded HTML is sanitized. Source scripts, event handlers, and dangerous URLs do not execute. Interactive modules are trusted programs with ordinary page-script capabilities.
 - `check` validates manifests, files, formulas, same/cross-chapter anchors, and component bundling. It neither proves subject correctness nor checks remote URL availability.
 
+## Exercises and solutions
+
+Associate a question and its answer explicitly, leaving blank lines around the HTML and Markdown:
+
+```markdown
+<div data-mb-exercise="exposure-ratio">
+
+**Exercise 1.2.** What happens to exposure when stopping down from f/2 to f/5.6?
+
+</div>
+```
+
+The answer can be on the same page or in any other registered chapter, such as `answers.md`:
+
+```markdown
+<div data-mb-solution="exposure-ratio-answer" data-mb-for="exposure-ratio">
+
+**Answer 1.2.** For unchanged time and transmission, the ratio is $(2/5.6)^2$.
+
+</div>
+```
+
+Exercise and solution ids are unique across the book and use lowercase letters/digits separated by hyphens.
+Keep ids when moving chapters or renaming titles; numbering and wording remain author-owned.
+`data-mb-for` must target an exercise in this book. Multiple answers are ordered by manifest chapter order,
+then source order. Unanswered exercises have no empty answer link. Containers cannot nest or double as interactive-component containers; embed a separate component container inside a question when needed.
+`check` rejects duplicate ids, malformed markers, empty content, missing targets, and targets that are solutions.
+
+The builder adds “View solution” and “Back to exercise” links, usable in static output without JavaScript.
+Stable anchors are `mb-exercise-<id>` and `mb-solution-<id>`; ordinary Markdown links may reference them.
+The enhanced reader scrolls to the target, moves keyboard focus, and briefly marks the landing location.
+Generated labels follow the interface language, or the book language without JavaScript. Manuscript text
+and numbering are unchanged. Ordinary Markdown readers such as GitHub display the contents but do not generate links.
+
 ## Interactive placement and lifecycle
 
 Declare every component in the manifest. Retain blank lines around the HTML container and its Markdown figure:

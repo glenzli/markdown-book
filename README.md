@@ -10,7 +10,7 @@
 
 阅读界面采用黑白灰底色，亮暗模式支持自动跟随或手动选择。
 
-当前工具版本 **0.7.5**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。书稿新增章节后可直接从更新的目录进入；切章保留目录滚动位置，并让当前章节保持可见。切章时保留现有目录节点，只更新正文和当前章节标记；“阅读设置”显示实际面板版本。每个发行版使用独立的原生界面资源地址，旧资源地址仍可读取。
+当前工具版本 **0.8.0**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。书稿新增章节后可直接从更新的目录进入；切章保留目录滚动位置，并让当前章节保持可见。切章时保留现有目录节点，只更新正文和当前章节标记；“阅读设置”显示实际面板版本。每个发行版使用独立的原生界面资源地址，旧资源地址仍可读取。
 
 侧栏重连会重建当前书籍的失效会话，并保留章节、滚动位置与实验参数；后台刷新不会
 覆盖正在进行的章节切换。保存未获确认的实验设置会保留，重试后继续写入本地状态。
@@ -43,6 +43,8 @@ codex plugin add markdown-book@glenzli-marketplace --json
 偏好保存在浏览器本地；存储受限的原生面板使用宿主视图状态。界面翻译覆盖选书、导航、查找、讨论及阅读设置，**不翻译书稿、章节标题或作者编写的互动组件**。诊断信息保留原始错误内容。
 
 章节目录和“本章内容”均可收起。`⌘K` / `Ctrl+K` 查找章节、正文和互动演示，点击结果定位到原位置。正文选区或当前小节可附上 Markdown、文件和行号，在单独的 Codex 对话中创建可编辑的讨论草稿；由用户发送。普通网页支持复制讨论内容。
+
+习题与答案支持显式关联，阅读器和静态网页自动生成“查看解答 / 返回习题”链接。题解可分布在不同章节，同题可有多份解答；题号仍由作者决定。[编写方法](docs/format-v1.md#习题与解答)。
 
 实验参数可跨切章、关闭和重启恢复；原生模式保存在本机独立状态文件，网页模式使用浏览器本地存储。参与此接口的演示提供“讨论这个实验”，讨论草稿可附上打开时的参数、读数和模型条件，并可取消勾选。[组件会话规范](docs/experiment-sessions.md)。
 
@@ -101,12 +103,14 @@ Markdown manuscripts, browser interactives, and one reader for local previews, C
 
 The reader uses neutral grayscale surfaces, with automatic or manual light and dark appearance.
 
-Tool version **0.7.5**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes. Newly added chapters open from the updated directory without reopening the book. Chapter changes preserve the directory scroll position and keep the current entry visible. Chapter changes retain the live directory node while updating the text and current entry. Reading settings show the loaded panel version. Each release has its own native UI resource address; the legacy address remains readable.
+Tool version **0.8.0**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes. Newly added chapters open from the updated directory without reopening the book. Chapter changes preserve the directory scroll position and keep the current entry visible. Chapter changes retain the live directory node while updating the text and current entry. Reading settings show the loaded panel version. Each release has its own native UI resource address; the legacy address remains readable.
 
 Sidebar recovery recreates a missing view for the current book while preserving its chapter,
 scroll position, and experiment parameters. Background updates cannot supersede newer navigation.
 Unconfirmed experiment assignments remain available for retry. Launch context also travels in
 standard tool results, and late context can resume startup without reinitializing the host bridge.
+
+Exercises and answers can be linked explicitly across chapters. Reader and static output generate “View solution / Back to exercise” links, including multiple answers per exercise. Authors keep control of numbering. See the [format](docs/format-v1.en.md#exercises-and-solutions).
 
 ## Install the Codex plugin
 
