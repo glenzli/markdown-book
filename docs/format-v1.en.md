@@ -42,6 +42,8 @@ The [JSON Schema](../schema/book.schema.json) is the full machine contract. Unkn
 
 Chapter URLs use stable ids, not titles or positions. Chapter order follows the manifest. Repository and license URLs accept HTTP(S). Choose each book's license separately from the MIT tool license.
 
+An optional `cover: { "src": "assets/cover.png", "alt": "Book cover description" }` is supported by tools 0.9.0 and later. The image is local to the book boundary and copied into the static output and catalog metadata. Publishers may pass the cover as a build option to retain older-reader compatibility without changing the manifest. See [website builds](website-builds.md#english) for deployment navigation and presentation.
+
 ## Markdown
 
 - CommonMark with GFM tables, task lists, strikethrough, and footnotes.

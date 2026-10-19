@@ -10,7 +10,7 @@
 
 阅读界面采用黑白灰底色，亮暗模式支持自动跟随或手动选择。
 
-当前工具版本 **0.8.0**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。书稿新增章节后可直接从更新的目录进入；切章保留目录滚动位置，并让当前章节保持可见。切章时保留现有目录节点，只更新正文和当前章节标记；“阅读设置”显示实际面板版本。每个发行版使用独立的原生界面资源地址，旧资源地址仍可读取。
+当前源码工具版本 **0.9.0**，书籍格式版本 **1**。适合在 GitHub 持续维护、在个人网站发布的网络书籍。尚未发布 npm 包。原生面板打开书籍时显示加载状态，合并重复点击；超时后可重试，复用面板会响应新的打开请求。切章时复用已载入的样式、公式字体和演示代码，避免重复传输；代码缓存有容量上限，并随面板关闭释放。书稿新增章节后可直接从更新的目录进入；切章保留目录滚动位置，并让当前章节保持可见。切章时保留现有目录节点，只更新正文和当前章节标记；“阅读设置”显示实际面板版本。每个发行版使用独立的原生界面资源地址，旧资源地址仍可读取。
 
 侧栏重连会重建当前书籍的失效会话，并保留章节、滚动位置与实验参数；后台刷新不会
 覆盖正在进行的章节切换。保存未获确认的实验设置会保留，重试后继续写入本地状态。
@@ -76,6 +76,8 @@ node bin/markdown-book.js build /path/to/book --out /tmp/book-site --base /books
 
 Three.js 通过 `@glenzli/markdown-book/three` 提供，仅在对应组件需要时加载。无 WebGL 2 时保留静态图。图标采用透明底单色书页，随界面文字颜色变化，不预设品牌主题色。
 
+0.9.0 新增可选封面和网站导航：发布时可显示“返回书架”并收起工具信息，互动、题解和状态恢复继续共用。见[网站构建](docs/website-builds.md)。本轮新增能力先用于源码网站构建；公开插件目录仍为 0.8.0。
+
 ### 开发与发布
 
 ```bash
@@ -103,7 +105,7 @@ Markdown manuscripts, browser interactives, and one reader for local previews, C
 
 The reader uses neutral grayscale surfaces, with automatic or manual light and dark appearance.
 
-Tool version **0.8.0**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes. Newly added chapters open from the updated directory without reopening the book. Chapter changes preserve the directory scroll position and keep the current entry visible. Chapter changes retain the live directory node while updating the text and current entry. Reading settings show the loaded panel version. Each release has its own native UI resource address; the legacy address remains readable.
+Source tool version **0.9.0**, book format **1**. Designed for books maintained on GitHub and published on the web. An npm package has not been published yet. Native panels show opening progress, coalesce repeated clicks, offer retry after timeouts, and accept fresh open requests when reused. Chapters reuse loaded styles, formula fonts, and interactive source bytes. The code cache has a size limit and is released when the panel closes. Newly added chapters open from the updated directory without reopening the book. Chapter changes preserve the directory scroll position and keep the current entry visible. Chapter changes retain the live directory node while updating the text and current entry. Reading settings show the loaded panel version. Each release has its own native UI resource address; the legacy address remains readable.
 
 Sidebar recovery recreates a missing view for the current book while preserving its chapter,
 scroll position, and experiment parameters. Background updates cannot supersede newer navigation.
@@ -169,6 +171,8 @@ node bin/markdown-book.js build /path/to/book --out /tmp/book-site --base /books
 Pass a book directory or book.json. `serve` listens on loopback and rebuilds on source changes, retaining the last successful build after errors. Mount static output at the configured `--base`; the website does not reparse Markdown. Images, KaTeX fonts, search data, and components are local assets. No CDN or reading-service API is required. Native panels receive the same content through MCP without connecting to localhost.
 
 Three.js is available through `@glenzli/markdown-book/three` and loads only where needed. Static figures remain available without WebGL 2. The transparent monochrome book icon inherits the interface text color and imposes no brand color.
+
+0.9.0 adds optional covers and website navigation, with a return-to-bookshelf link and minimal tool chrome. Reading, exercises and experiment state still use the shared reader. See [website builds](docs/website-builds.md#english). These additions are currently available in source builds; the public plugin catalog remains at 0.8.0.
 
 ### Development and release
 

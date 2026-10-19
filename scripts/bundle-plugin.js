@@ -1,9 +1,30 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { cp, mkdir, rm, readFile, stat } from "node:fs/promises";
+import { cp, mkdir, rm, readFile, readdir, stat } from "node:fs/promises";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const runtime = path.join(root, "plugins/markdown-book/runtime");
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== "--out"))
+  throw new Error("Usage: bundle-plugin.js [--out empty-runtime-directory]");
+const runtime = args.length
+  ? path.resolve(args[1])
+  : path.join(root, "plugins/markdown-book/runtime");
+if (args.length) {
+  if (
+    runtime === root ||
+    root.startsWith(`${runtime}${path.sep}`) ||
+    runtime === path.parse(runtime).root
+  )
+    throw new Error(
+      "Runtime output must not replace the project or its ancestors",
+    );
+  try {
+    if ((await readdir(runtime)).length)
+      throw new Error(`Runtime output must be empty: ${runtime}`);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
 await rm(runtime, { recursive: true, force: true });
 await mkdir(runtime, { recursive: true });
 for (const name of [

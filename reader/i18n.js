@@ -50,8 +50,8 @@ export const messages = {
     en: "Dark",
   },
   preferencesNote: {
-    "zh-CN": "自动模式优先跟随宿主，未提供时跟随系统。界面语言不改变书稿内容。",
-    en: "Automatic follows the host when available, otherwise your system. Interface language does not translate the book.",
+    "zh-CN": "自动跟随当前应用或系统设置。界面语言不改变书稿内容。",
+    en: "Automatic follows your app or system settings. Interface language does not translate the book.",
   },
   chooseBook: {
     "zh-CN": "选择书籍 · Markdown Book",
@@ -204,6 +204,11 @@ export const messages = {
   pageCount: {
     "zh-CN": "MARKDOWN BOOK · {count} 页",
     en: "MARKDOWN BOOK · {count} pages",
+  },
+  backToBookshelf: { "zh-CN": "返回书架", en: "Back to bookshelf" },
+  readingPageCount: {
+    "zh-CN": "{count} 个阅读页面",
+    en: "{count} reading pages",
   },
   startReading: {
     "zh-CN": "开始阅读",

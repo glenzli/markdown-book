@@ -16,6 +16,33 @@ const relativeFile = z
 const webUrl = z
   .url()
   .refine((value) => /^https?:\/\//i.test(value), "Use an HTTP(S) URL");
+export const coverSchema = z.strictObject({
+  src: relativeFile.refine(
+    (value) =>
+      /\.(avif|gif|jpe?g|png|svg|webp)$/i.test(value) && !/[?:#]/.test(value),
+    "Cover must be a local image path without a query or fragment",
+  ),
+  alt: z.string().trim().min(1),
+});
+const siteUrl = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      !/[\u0000-\u0020\\]/.test(value) &&
+      ((value.startsWith("/") && !value.startsWith("//")) ||
+        webUrl.safeParse(value).success),
+    "Use a site-absolute path or an HTTP(S) URL",
+  );
+const siteSchema = z.strictObject({
+  home: siteUrl,
+  label: z.string().trim().min(1).optional(),
+  favicon: siteUrl.optional(),
+});
+export function normalizeSite(value) {
+  return value == null ? null : siteSchema.parse(value);
+}
+
 export const bookSchema = z.strictObject({
   $schema: z.url().optional(),
   formatVersion: z.literal(1),
@@ -23,6 +50,7 @@ export const bookSchema = z.strictObject({
   title: z.string().min(1),
   description: z.string().default(""),
   author: z.string().optional(),
+  cover: coverSchema.optional(),
   language: z.string().default("zh-CN"),
   license: z.strictObject({ name: z.string().min(1), url: webUrl }).optional(),
   chapters: z
@@ -105,5 +133,6 @@ export async function loadBook(input = ".") {
       throw new Error(`Component ${id} needs a .js, .mjs or .ts entry`);
     await projectFile(root, component.entry);
   }
+  if (manifest.cover) await projectFile(root, manifest.cover.src);
   return { root, filename, manifest };
 }

@@ -1,6 +1,6 @@
 {
   "name": "@glenzli/markdown-book",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Markdown books with portable interactive components, a shared reader, and static builds.",
   "type": "module",
   "license": "MIT",

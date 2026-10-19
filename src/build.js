@@ -15,18 +15,41 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { build as bundle } from "./bundler.js";
-import { loadBook, inside, normalizeBase } from "./manifest.js";
+import {
+  loadBook,
+  inside,
+  normalizeBase,
+  projectFile,
+  coverSchema,
+  normalizeSite,
+} from "./manifest.js";
 import { renderChapters } from "./markdown.js";
 import { renderPage } from "./template.js";
 
 const toolRoot = fileURLToPath(new URL("../", import.meta.url));
 const resolveDependency = createRequire(import.meta.url).resolve;
-export const toolVersion = "0.8.0";
+export const toolVersion = "0.9.0";
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 
 export async function checkBook(input = ".", options = {}) {
   const book = await loadBook(input);
   const base = normalizeBase(options.base ?? "/");
+  const site = normalizeSite(options.site);
+  const coverSpec =
+    options.cover === undefined
+      ? book.manifest.cover
+      : coverSchema.parse(options.cover);
+  const coverOutput = coverSpec
+    ? `media/${coverSpec.src.split("/").map(encodeURIComponent).join("/")}`
+    : null;
+  const cover = coverSpec
+    ? {
+        ...coverSpec,
+        absolute: await projectFile(book.root, coverSpec.src),
+        output: coverOutput,
+        href: `${base}${coverOutput}`,
+      }
+    : null;
   const chapters = await renderChapters(book, base);
   for (const chapter of chapters)
     for (const reference of chapter.references) {
@@ -168,6 +191,8 @@ export async function checkBook(input = ".", options = {}) {
   for (const chapter of chapters)
     for (const asset of chapter.assets)
       assetDigests.push([asset.output, sha(await readFile(asset.absolute))]);
+  if (cover)
+    assetDigests.push([cover.output, sha(await readFile(cover.absolute))]);
   const rendererDigests = await Promise.all(
     [
       "src/build.js",
@@ -188,6 +213,8 @@ export async function checkBook(input = ".", options = {}) {
     JSON.stringify({
       manifest: book.manifest,
       base,
+      site,
+      cover: coverSpec ?? null,
       chapters: chapters.map(({ id, source, html }) => ({ id, source, html })),
       inputDigests,
       assetDigests,
@@ -196,6 +223,8 @@ export async function checkBook(input = ".", options = {}) {
   );
   return {
     ...book,
+    site,
+    cover,
     chapters,
     base,
     javascript,
@@ -280,6 +309,7 @@ export async function buildBook(input = ".", options = {}) {
     formatVersion: 1,
     bookId: prepared.manifest.id,
     digest: prepared.digest,
+    ...(prepared.site ? { site: prepared.site } : {}),
     ...gitState(prepared.root),
   };
   try {
@@ -310,15 +340,21 @@ export async function buildBook(input = ".", options = {}) {
         components: prepared.componentModules,
       }) + "\n",
     );
+    const assets = new Map(
+      prepared.chapters
+        .flatMap((chapter) => chapter.assets)
+        .map((asset) => [asset.output, asset]),
+    );
+    if (prepared.cover) assets.set(prepared.cover.output, prepared.cover);
+    for (const asset of assets.values()) {
+      const target = path.join(
+        staging,
+        ...asset.output.split("/").map(decodeURIComponent),
+      );
+      await mkdir(path.dirname(target), { recursive: true });
+      await cp(asset.absolute, target);
+    }
     for (const chapter of prepared.chapters) {
-      for (const asset of chapter.assets) {
-        const target = path.join(
-          staging,
-          ...asset.output.split("/").map(decodeURIComponent),
-        );
-        await mkdir(path.dirname(target), { recursive: true });
-        await cp(asset.absolute, target);
-      }
       await mkdir(path.join(staging, chapter.id));
       await writeFile(
         path.join(staging, chapter.id, "index.html"),
@@ -340,6 +376,16 @@ export async function buildBook(input = ".", options = {}) {
           id: prepared.manifest.id,
           title: prepared.manifest.title,
           description: prepared.manifest.description,
+          language: prepared.manifest.language,
+          ...(prepared.manifest.author
+            ? { author: prepared.manifest.author }
+            : {}),
+          ...(prepared.manifest.license
+            ? { license: prepared.manifest.license }
+            : {}),
+          ...(prepared.cover
+            ? { cover: { href: prepared.cover.href, alt: prepared.cover.alt } }
+            : {}),
           base: prepared.base,
           chapters: prepared.chapters.map(({ id, title }) => ({
             id,

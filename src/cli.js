@@ -2,7 +2,7 @@ import path from "node:path";
 import { checkBook, buildBook, toolVersion } from "./build.js";
 import { serveBook } from "./server.js";
 
-const help = `markdown-book ${toolVersion}\n\n  check [book-directory|book.json] [--json]\n  serve [book-directory|book.json] [--port 0] [--base /]\n  build [book-directory|book.json] [--out dist] [--base /]\n  mcp\n\nThe directory defaults to the current working directory. Preview listens on 127.0.0.1.\n`;
+const help = `markdown-book ${toolVersion}\n\n  check [book-directory|book.json] [--json]\n  serve [book-directory|book.json] [--port 0] [--base /]\n  build [book-directory|book.json] [--out dist] [--base /]\n        [--site-home /books/] [--site-label label] [--site-icon /favicon.svg]\n        [--cover assets/cover.png --cover-alt description]\n  mcp\n\nThe directory defaults to the current working directory. Preview listens on 127.0.0.1.\n`;
 
 export async function main(argv = process.argv.slice(2)) {
   const [command, ...args] = argv;
@@ -30,7 +30,18 @@ export async function main(argv = process.argv.slice(2)) {
       options.json = true;
       continue;
     }
-    if (["--base", "--out", "--port"].includes(arg)) {
+    if (
+      [
+        "--base",
+        "--out",
+        "--port",
+        "--site-home",
+        "--site-label",
+        "--site-icon",
+        "--cover",
+        "--cover-alt",
+      ].includes(arg)
+    ) {
       if (!args[i + 1] || args[i + 1].startsWith("--"))
         throw new Error(`Missing value for ${arg}`);
       options[arg.slice(2)] = args[++i];
@@ -41,6 +52,26 @@ export async function main(argv = process.argv.slice(2)) {
     input = arg;
   }
   input ??= ".";
+  const websiteOptions = [
+    "site-home",
+    "site-label",
+    "site-icon",
+    "cover",
+    "cover-alt",
+  ];
+  if (
+    command !== "build" &&
+    websiteOptions.some((key) => options[key] !== undefined)
+  )
+    throw new Error("Website and cover options are available for build only");
+  if (
+    (options["site-label"] !== undefined ||
+      options["site-icon"] !== undefined) &&
+    !options["site-home"]
+  )
+    throw new Error("--site-label and --site-icon require --site-home");
+  if ((options.cover !== undefined) !== (options["cover-alt"] !== undefined))
+    throw new Error("--cover and --cover-alt must be provided together");
   if (
     options.port !== undefined &&
     (!/^\d+$/.test(options.port) || Number(options.port) > 65535)
@@ -64,6 +95,16 @@ export async function main(argv = process.argv.slice(2)) {
     const result = await buildBook(input, {
       base: options.base,
       outDir: options.out ? path.resolve(options.out) : undefined,
+      site: options["site-home"]
+        ? {
+            home: options["site-home"],
+            label: options["site-label"],
+            favicon: options["site-icon"],
+          }
+        : undefined,
+      cover: options.cover
+        ? { src: options.cover, alt: options["cover-alt"] }
+        : undefined,
     });
     process.stdout.write(
       options.json

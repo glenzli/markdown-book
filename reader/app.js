@@ -2,7 +2,7 @@ import { createBrowserPreferences } from "./preferences.js";
 import { prepareNavigation, revealAnchor } from "./navigation.js";
 import { renderLibrary } from "./library.js";
 import { canDraftDiscussion, discussionRequest } from "./reference-data.js";
-const appInfo = { name: "markdown-book", version: "0.8.0" };
+const appInfo = { name: "markdown-book", version: "0.9.0" };
 const appMark = document.querySelector(".mb-app-mark")?.outerHTML ?? "";
 // MCP Apps host bridge. Navigation stays inside this panel, including opaque origins.
 const pending = new Map();

@@ -93,3 +93,7 @@ Check validates format, resources, formula syntax, anchors, and module contracts
 See [format v1](format-v1.en.md), [component types](../src/component.d.ts), and [Three.js](three-components.md). The plugin's `write-markdown-book` skill helps an AI edit actual files, preserve the author's organization, and validate the result.
 
 Use explicit `data-mb-exercise`, `data-mb-solution`, and `data-mb-for` containers for bidirectional question/answer links. Keep ids stable rather than inferring relationships from titles or numbers. See [exercises and solutions](format-v1.en.md#exercises-and-solutions).
+
+## 封面与网站入口
+
+封面和本站导航的构建示例见[网站构建](website-builds.md)。已有清单需保持旧阅读器可读时，使用发布方构建参数传封面；站点入口留在部署配置中。

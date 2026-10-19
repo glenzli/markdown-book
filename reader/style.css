@@ -758,3 +758,41 @@ html[data-reader-ready] .reader-action {
   outline-offset: 6px;
   background: var(--soft);
 }
+
+.site-return svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  flex: none;
+}
+.book-frontmatter.has-cover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 28%);
+  gap: 28px;
+  align-items: start;
+}
+.book-frontmatter > div {
+  min-width: 0;
+}
+.prose .book-cover {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+@media (max-width: 760px) {
+  .site-return > span:last-child {
+    display: inline;
+  }
+  .book-frontmatter.has-cover {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .prose .book-cover {
+    width: min(60%, 220px);
+    margin: 0 auto 32px;
+  }
+}

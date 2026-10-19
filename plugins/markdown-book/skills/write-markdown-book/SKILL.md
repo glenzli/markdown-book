@@ -35,3 +35,5 @@ For stateful experiments, read `../../runtime/docs/experiment-sessions.md`. Acce
 validate stored schema/version and ranges, save reconstruction parameters/seeds/steps, and register a bounded
 `describe` snapshot with units and model conditions. Restore paused. Forward the session through view wrappers
 and keep distinct tab states. Do not store rendered frames or numerical arrays, and do not auto-send AI drafts.
+
+For cover metadata and deployment appearance, read `../../runtime/docs/website-builds.md`. Optional `cover: {src, alt}` requires reader 0.9.0 or later. When an existing manuscript must remain readable by older installed tools, keep its manifest unchanged and let the publisher pass a cover build option. Keep site navigation in deployment options rather than the manuscript.

@@ -26,6 +26,8 @@
 
 完整机器约束见 [JSON Schema](../schema/book.schema.json)。书与章节标识采用小写字母、数字和短横线，章节 id 与 file 各自唯一。章节顺序以清单为准；网址使用稳定 id，不从标题或顺序生成。可选的 description、author、source 供阅读器展示与溯源。`license` 可填写 `{ "name": "CC BY-NC-ND 4.0", "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/" }`，阅读器在每页保留许可链接；仓库与许可网址仅接受 HTTP(S)。
 
+封面可选写为 `"cover": { "src": "assets/cover.png", "alt": "书籍封面说明" }`（工具 0.9.0 起支持）。`src` 为书籍根目录内的本地图片，`alt` 为文字说明；构建时复制到网站资源并写入目录元数据。为保留旧版阅读器兼容性，可由发布方通过构建参数提供封面而不新增清单字段。网站入口及外观选项见[网站构建](website-builds.md)。
+
 ## 正文
 
 - CommonMark 加 GFM 表格、任务列表、删除线和脚注。
